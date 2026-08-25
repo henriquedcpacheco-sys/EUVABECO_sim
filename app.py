@@ -14,7 +14,7 @@ P = data[["P_0_49", "P_50_59", "P_60_69", "P_70p"]].to_numpy()
 NT = data["NT"].to_numpy()
 dates = pd.to_datetime("2020-03-02") + pd.to_timedelta(t_arr, unit="D")
 
-st.title("🦠 COVID-19 Simulator — Age-Stratified Model")
+st.title("COVID-19 Simulator — Age-Stratified Model")
 
 st.markdown("""
 Henrique Pacheco, CEMAT henrique.v.pacheco@tecnico.ulisboa.pt
@@ -33,11 +33,12 @@ hospitalisation rate.
 
 ---
 
-## Rules of the game
+## How to use this simulator
 
-Adjust the parameters below and try to **improve the fit** to the real data
-(grey dots), measured by the error $J$. The default values are the optimal
-fit — see if you can do better, or understand why you can't!
+Adjust the parameters below, then click Simulate to compare the resulting
+trajectories against the observed data (grey dots). Fit quality is reported
+as the error $J$; the default values correspond to the model's fitted
+optimum.
 """)
 
 st.subheader("Transmission (β per segment)")
@@ -67,7 +68,7 @@ with st.expander("Advanced — initial conditions"):
     with c5:
         I0 = st.slider("I₀ — initial infectious", *model.BOUNDS["I0"], model.DEFAULTS["I0"])
 
-if st.button("🚀 Simulate"):
+if st.button("Simulate"):
     dc, H, ICU, dd, S = model.simulate(betas, theta, phi_h, r_c, psi_base, F_test, E0, I0, t_arr, P, NT)
     st.session_state.result = dict(dc=dc, H=H, ICU=ICU, dd=dd, S=S, betas=betas, psi_base=psi_base, F_test=F_test)
 
@@ -84,7 +85,7 @@ else:
     j_deaths = model.j_score(data["daily_deaths_obs"].to_numpy(), dd)
     j_total = j_cases + j_ward + j_icu + j_deaths
 
-    st.subheader("Score (error $J$ — lower is better)")
+    st.subheader("Goodness of fit (error $J$; lower is better)")
     m1, m2, m3, m4, m5 = st.columns(5)
     m1.metric("Cases", f"{j_cases:.1f}")
     m2.metric("Ward", f"{j_ward:.1f}")
