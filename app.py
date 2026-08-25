@@ -67,59 +67,68 @@ with st.expander("Advanced — initial conditions"):
     with c5:
         I0 = st.slider("I₀ — initial infectious", *model.BOUNDS["I0"], model.DEFAULTS["I0"])
 
-dc, H, ICU, dd, S = model.simulate(betas, theta, phi_h, r_c, psi_base, F_test, E0, I0, t_arr, P, NT)
+if st.button("🚀 Simulate"):
+    dc, H, ICU, dd, S = model.simulate(betas, theta, phi_h, r_c, psi_base, F_test, E0, I0, t_arr, P, NT)
+    st.session_state.result = dict(dc=dc, H=H, ICU=ICU, dd=dd, S=S, betas=betas, psi_base=psi_base, F_test=F_test)
 
-j_cases = model.j_score(data["daily_cases_obs"].to_numpy(), dc)
-j_ward = model.j_score(data["ward_obs"].to_numpy(), H)
-j_icu = model.j_score(data["icu_obs"].to_numpy(), ICU)
-j_deaths = model.j_score(data["daily_deaths_obs"].to_numpy(), dd)
-j_total = j_cases + j_ward + j_icu + j_deaths
+if "result" not in st.session_state:
+    st.info("Adjust the parameters above and click Simulate.")
+else:
+    r = st.session_state.result
+    dc, H, ICU, dd, S = r["dc"], r["H"], r["ICU"], r["dd"], r["S"]
+    betas_r, psi_base_r, F_test_r = r["betas"], r["psi_base"], r["F_test"]
 
-st.subheader("Score (error $J$ — lower is better)")
-m1, m2, m3, m4, m5 = st.columns(5)
-m1.metric("Cases", f"{j_cases:.1f}")
-m2.metric("Ward", f"{j_ward:.1f}")
-m3.metric("ICU", f"{j_icu:.1f}")
-m4.metric("Deaths", f"{j_deaths:.1f}")
-m5.metric("Total", f"{j_total:.1f}", delta=f"{j_total - 321.53:.1f} vs. optimum", delta_color="inverse")
+    j_cases = model.j_score(data["daily_cases_obs"].to_numpy(), dc)
+    j_ward = model.j_score(data["ward_obs"].to_numpy(), H)
+    j_icu = model.j_score(data["icu_obs"].to_numpy(), ICU)
+    j_deaths = model.j_score(data["daily_deaths_obs"].to_numpy(), dd)
+    j_total = j_cases + j_ward + j_icu + j_deaths
 
-st.subheader("Fit to the observed series")
-fig, axes = plt.subplots(2, 2, figsize=(9, 6))
-panels = [
-    (data["daily_cases_obs"], dc, "Daily cases", "#d62728"),
-    (data["ward_obs"], H, "Ward occupancy", "#1f77b4"),
-    (data["icu_obs"], ICU, "ICU occupancy", "#9467bd"),
-    (data["daily_deaths_obs"], dd, "Daily deaths", "#2c2c2c"),
-]
-for ax, (obs, sim, title, color) in zip(axes.ravel(), panels):
-    ax.scatter(dates, obs, s=6, color="#bbbbbb", label="Observed")
-    ax.plot(dates, np.maximum(sim, 0), color=color, linewidth=2, label="Simulated")
-    ax.set_title(title, fontsize=11)
-    ax.legend(fontsize=7)
-    ax.tick_params(axis="x", rotation=30)
-fig.tight_layout()
-st.pyplot(fig)
+    st.subheader("Score (error $J$ — lower is better)")
+    m1, m2, m3, m4, m5 = st.columns(5)
+    m1.metric("Cases", f"{j_cases:.1f}")
+    m2.metric("Ward", f"{j_ward:.1f}")
+    m3.metric("ICU", f"{j_icu:.1f}")
+    m4.metric("Deaths", f"{j_deaths:.1f}")
+    m5.metric("Total", f"{j_total:.1f}", delta=f"{j_total - 321.53:.1f} vs. optimum", delta_color="inverse")
 
-st.subheader("Effective reproduction number $\\mathcal{R}_t$")
-R0, Rt = model.r_numbers(betas, S, t_arr)
-fig2, ax2 = plt.subplots(figsize=(9, 3))
-ax2.plot(dates, R0, "--", color="grey", label="$\\mathcal{R}_0$ (no depletion)")
-ax2.plot(dates, Rt, color="royalblue", linewidth=2, label="$\\mathcal{R}_t$")
-ax2.axhline(1, color="red", linestyle="--")
-ax2.legend(fontsize=8)
-st.pyplot(fig2)
+    st.subheader("Fit to the observed series")
+    fig, axes = plt.subplots(2, 2, figsize=(9, 6))
+    panels = [
+        (data["daily_cases_obs"], dc, "Daily cases", "#d62728"),
+        (data["ward_obs"], H, "Ward occupancy", "#1f77b4"),
+        (data["icu_obs"], ICU, "ICU occupancy", "#9467bd"),
+        (data["daily_deaths_obs"], dd, "Daily deaths", "#2c2c2c"),
+    ]
+    for ax, (obs, sim, title, color) in zip(axes.ravel(), panels):
+        ax.scatter(dates, obs, s=6, color="#bbbbbb", label="Observed")
+        ax.plot(dates, np.maximum(sim, 0), color=color, linewidth=2, label="Simulated")
+        ax.set_title(title, fontsize=11)
+        ax.legend(fontsize=7)
+        ax.tick_params(axis="x", rotation=30)
+    fig.tight_layout()
+    st.pyplot(fig)
 
-st.subheader("Effective hospitalisation probability $\\psi(t)$")
-psi_t = model.psi_effective(psi_base, F_test, P, NT, t_arr)
-fig3, ax3 = plt.subplots(figsize=(9, 3))
-ax3.plot(dates, psi_t, color="seagreen", linewidth=2)
-ax3.set_ylabel("$\\psi(t)$")
-st.pyplot(fig3)
+    st.subheader("Effective reproduction number $\\mathcal{R}_t$")
+    R0, Rt = model.r_numbers(betas_r, S, t_arr)
+    fig2, ax2 = plt.subplots(figsize=(9, 3))
+    ax2.plot(dates, R0, "--", color="grey", label="$\\mathcal{R}_0$ (no depletion)")
+    ax2.plot(dates, Rt, color="royalblue", linewidth=2, label="$\\mathcal{R}_t$")
+    ax2.axhline(1, color="red", linestyle="--")
+    ax2.legend(fontsize=8)
+    st.pyplot(fig2)
 
-st.caption(
-    "Age doubling structure: ψ₅₀₋₅₉ = 2×ψ_base, "
-    "ψ₆₀₋₆₉ = 4×ψ_base, ψ₇₀₊ = 8×ψ_base."
-)
+    st.subheader("Effective hospitalisation probability $\\psi(t)$")
+    psi_t = model.psi_effective(psi_base_r, F_test_r, P, NT, t_arr)
+    fig3, ax3 = plt.subplots(figsize=(9, 3))
+    ax3.plot(dates, psi_t, color="seagreen", linewidth=2)
+    ax3.set_ylabel("$\\psi(t)$")
+    st.pyplot(fig3)
+
+    st.caption(
+        "Age doubling structure: ψ₅₀₋₅₉ = 2×ψ_base, "
+        "ψ₆₀₋₆₉ = 4×ψ_base, ψ₇₀₊ = 8×ψ_base."
+    )
 
 st.subheader("Age composition of cases, on a chosen day")
 day = st.slider("Day", int(t_arr.min()), int(t_arr.max()), 259)
