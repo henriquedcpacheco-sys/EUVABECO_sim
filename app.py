@@ -1,142 +1,160 @@
-import numpy as np
-import pandas as pd
-import streamlit as st
 import matplotlib.pyplot as plt
+import streamlit as st
 
-import model
+from data import SERIES_LABELS, load_age_bayes, load_deterministic
 
-st.set_page_config(page_title="COVID-19 Simulator", layout="centered")
+st.set_page_config(page_title="EUVABECO COVID-19 Model Explorer", layout="centered")
 
-# data
-data = pd.read_csv("data/age_model_data.csv")
-t_arr = data["t"].to_numpy(dtype=float)
-P = data[["P_0_49", "P_50_59", "P_60_69", "P_70p"]].to_numpy()
-NT = data["NT"].to_numpy()
-dates = pd.to_datetime("2020-03-02") + pd.to_timedelta(t_arr, unit="D")
+st.title("EUVABECO COVID-19 Model Explorer")
+st.markdown(
+    """
+Henrique Pacheco, CEMAT — henrique.v.pacheco@tecnico.ulisboa.pt
+Erida Gjini, CEMAT — erida.gjini@tecnico.ulisboa.pt
 
-st.title("COVID-19 Simulator — Age-Stratified Model")
+This walks through the modeling choices made in the thesis and shows the
+**actual fitted result** for the combination you pick. It is not a slider
+playground — every branch below is a specific model already fitted to
+Portugal's 2020 COVID-19 data, not something you tune live.
+"""
+)
 
-st.markdown("""
-Henrique Pacheco, CEMAT henrique.v.pacheco@tecnico.ulisboa.pt
 
-Erida Gjini, CEMAT erida.gjini@tecnico.ulisboa.pt
-""")
+def reset():
+    for k in ("approach", "age", "seq_model", "sim_model", "bayes"):
+        st.session_state.pop(k, None)
 
-st.markdown("""
-## What is this model?
 
-A compartmental (SEICHRD) COVID-19 model for Portugal in 2020, where the
-probability of hospitalisation depends on the **age group** of confirmed
-cases each day, and is corrected by **testing volume**: the more testing
-there is, the more mild cases enter the count, diluting the apparent
-hospitalisation rate.
+st.button("Start over", on_click=reset)
+st.divider()
 
----
+st.subheader("1. How are the parameters estimated?")
+approach = st.radio(
+    "Estimation approach",
+    ["Sequential", "Simultaneous"],
+    index=None,
+    key="approach",
+    label_visibility="collapsed",
+    help=(
+        "Sequential: transmission rates β are fit first to confirmed cases alone "
+        "(Stage I), then clinical parameters are fit to hospital/ICU/death data "
+        "holding β fixed (Stage II). Simultaneous: everything is fit jointly, "
+        "in one optimisation over all four series at once."
+    ),
+)
 
-## How to use this simulator
+model_key = None
 
-Adjust the parameters below, then click Simulate to compare the resulting
-trajectories against the observed data (grey dots). Fit quality is reported
-as the error $J$; the default values correspond to the model's fitted
-optimum.
-""")
+if approach == "Sequential":
+    st.subheader("2. Which clinical-parameter model?")
+    seq_choice = st.radio(
+        "Sequential model",
+        [
+            "Model 1 — constant clinical parameters",
+            "Model 2 — piecewise ψ, one value per NPI segment",
+            "Model 3 — ψ(t) driven by the testing-volume covariate",
+        ],
+        index=None,
+        key="seq_model",
+        label_visibility="collapsed",
+    )
+    model_key = {
+        "Model 1 — constant clinical parameters": "seq_m1",
+        "Model 2 — piecewise ψ, one value per NPI segment": "seq_m2",
+        "Model 3 — ψ(t) driven by the testing-volume covariate": "seq_m3",
+    }.get(seq_choice)
 
-st.subheader("Transmission (β per segment)")
-segs = ["0-28 days", "28-103 days", "103-208 days", "208-259 days", "259-304 days"]
-betas = []
-cols = st.columns(5)
-for i, c in enumerate(cols):
-    lo, hi = model.BOUNDS[f"beta{i+1}"]
-    with c:
-        betas.append(st.slider(segs[i], lo, hi, model.DEFAULTS["betas"][i], key=f"beta{i}"))
+elif approach == "Simultaneous":
+    st.subheader("2. Include the age-stratified extension?")
+    age_choice = st.radio(
+        "Age extension",
+        ["No", "Yes"],
+        index=None,
+        key="age",
+        label_visibility="collapsed",
+        help=(
+            "The age-stratified extension replaces the piecewise ψ with an "
+            "age-weighted hospitalisation probability, driven by the daily age "
+            "composition of confirmed cases and corrected for testing volume."
+        ),
+    )
+    if age_choice == "No":
+        st.subheader("3. Which clinical-parameter model?")
+        sim_choice = st.radio(
+            "Simultaneous model",
+            [
+                "Model 1 — constant clinical parameters",
+                "Model 2 — piecewise ψ, one value per NPI segment",
+            ],
+            index=None,
+            key="sim_model",
+            label_visibility="collapsed",
+            help="Model 3 is not offered here: it does not converge under simultaneous fitting.",
+        )
+        model_key = {
+            "Model 1 — constant clinical parameters": "sim_m1",
+            "Model 2 — piecewise ψ, one value per NPI segment": "sim_m2",
+        }.get(sim_choice)
+    elif age_choice == "Yes":
+        st.subheader("3. Show Bayesian posterior uncertainty?")
+        bayes_choice = st.radio(
+            "Bayesian bands",
+            ["No — point estimate only", "Yes — with 95% credible bands"],
+            index=None,
+            key="bayes",
+            label_visibility="collapsed",
+            help=(
+                "Bayesian bands come from an MCMC (DRAM) run over this model's "
+                "parameters, propagated through the ODE to give a posterior "
+                "predictive uncertainty range, not a single best-fit line."
+            ),
+        )
+        if bayes_choice == "No — point estimate only":
+            model_key = "age_point"
+        elif bayes_choice == "Yes — with 95% credible bands":
+            model_key = "age_bayes"
 
-st.subheader("Clinical parameters")
-c1, c2, c3 = st.columns(3)
-with c1:
-    theta = st.slider("θ — ICU admission prob.", *model.BOUNDS["theta"], model.DEFAULTS["theta"])
-    phi_h = st.slider("φ_h — ward death prob.", *model.BOUNDS["phi_h"], model.DEFAULTS["phi_h"])
-with c2:
-    r_c = st.slider("r_c — ICU/ward mortality ratio", *model.BOUNDS["r_c"], model.DEFAULTS["r_c"])
-    psi_base = st.slider("ψ base (0-49 years)", *model.BOUNDS["psi_base"], model.DEFAULTS["psi_base"])
-with c3:
-    F_test = st.slider("F_test — testing-correction strength", *model.BOUNDS["F_test"], model.DEFAULTS["F_test"])
+st.divider()
 
-with st.expander("Advanced — initial conditions"):
-    c4, c5 = st.columns(2)
-    with c4:
-        E0 = st.slider("E₀ — initial exposed", *model.BOUNDS["E0"], model.DEFAULTS["E0"])
-    with c5:
-        I0 = st.slider("I₀ — initial infectious", *model.BOUNDS["I0"], model.DEFAULTS["I0"])
+if model_key:
+    result = load_age_bayes() if model_key == "age_bayes" else load_deterministic(model_key)
+    st.header(result.label)
 
-if st.button("Simulate"):
-    dc, H, ICU, dd, S = model.simulate(betas, theta, phi_h, r_c, psi_base, F_test, E0, I0, t_arr, P, NT)
-    st.session_state.result = dict(dc=dc, H=H, ICU=ICU, dd=dd, S=S, betas=betas, psi_base=psi_base, F_test=F_test)
+    if result.summary is not None:
+        s = result.summary
+        cols = st.columns(5)
+        cols[0].metric("J cases", f"{s['J_cases']:.1f}")
+        cols[1].metric("J ward", f"{s['J_ward']:.1f}")
+        cols[2].metric("J ICU", f"{s['J_icu']:.1f}")
+        cols[3].metric("J deaths", f"{s['J_deaths']:.1f}")
+        cols[4].metric("J total", f"{s['J_total']:.1f}")
+        st.caption(
+            "J is the sum-of-squared-log-residuals fitting criterion used "
+            "throughout the thesis — lower is a better fit."
+        )
 
-if "result" not in st.session_state:
-    st.info("Adjust the parameters above and click Simulate.")
-else:
-    r = st.session_state.result
-    dc, H, ICU, dd, S = r["dc"], r["H"], r["ICU"], r["dd"], r["S"]
-    betas_r, psi_base_r, F_test_r = r["betas"], r["psi_base"], r["F_test"]
-
-    j_cases = model.j_score(data["daily_cases_obs"].to_numpy(), dc)
-    j_ward = model.j_score(data["ward_obs"].to_numpy(), H)
-    j_icu = model.j_score(data["icu_obs"].to_numpy(), ICU)
-    j_deaths = model.j_score(data["daily_deaths_obs"].to_numpy(), dd)
-    j_total = j_cases + j_ward + j_icu + j_deaths
-
-    st.subheader("Goodness of fit (error $J$; lower is better)")
-    m1, m2, m3, m4, m5 = st.columns(5)
-    m1.metric("Cases", f"{j_cases:.1f}")
-    m2.metric("Ward", f"{j_ward:.1f}")
-    m3.metric("ICU", f"{j_icu:.1f}")
-    m4.metric("Deaths", f"{j_deaths:.1f}")
-    m5.metric("Total", f"{j_total:.1f}", delta=f"{j_total - 321.53:.1f} vs. optimum", delta_color="inverse")
-
-    st.subheader("Fit to the observed series")
-    fig, axes = plt.subplots(2, 2, figsize=(9, 6))
-    panels = [
-        (data["daily_cases_obs"], dc, "Daily cases", "#d62728"),
-        (data["ward_obs"], H, "Ward occupancy", "#1f77b4"),
-        (data["icu_obs"], ICU, "ICU occupancy", "#9467bd"),
-        (data["daily_deaths_obs"], dd, "Daily deaths", "#2c2c2c"),
-    ]
-    for ax, (obs, sim, title, color) in zip(axes.ravel(), panels):
-        ax.scatter(dates, obs, s=6, color="#bbbbbb", label="Observed")
-        ax.plot(dates, np.maximum(sim, 0), color=color, linewidth=2, label="Simulated")
-        ax.set_title(title, fontsize=11)
-        ax.legend(fontsize=7)
+    fig, axes = plt.subplots(2, 2, figsize=(9, 6.5))
+    for ax, series in zip(axes.flat, ["cases", "ward", "icu", "deaths"]):
+        d = result.trajectories[result.trajectories["series"] == series]
+        ax.scatter(d["date"], d["obs"], s=6, color="grey", alpha=0.6, label="Observed")
+        if result.has_bands:
+            ax.fill_between(
+                d["date"], d["pred_lo"], d["pred_hi"],
+                color="steelblue", alpha=0.20, label="95% CI (+obs. noise)",
+            )
+            ax.fill_between(
+                d["date"], d["obs_lo"], d["obs_hi"],
+                color="steelblue", alpha=0.40, label="95% credible band",
+            )
+            ax.plot(d["date"], d["point_est"], color="steelblue", lw=1.5, label="Fitted model")
+        else:
+            ax.plot(d["date"], d["sim"], color="steelblue", lw=1.5, label="Fitted model")
+        ax.set_title(SERIES_LABELS[series])
         ax.tick_params(axis="x", rotation=30)
+    axes.flat[0].legend(fontsize=7, loc="upper left")
     fig.tight_layout()
     st.pyplot(fig)
 
-    st.subheader("Effective reproduction number $\\mathcal{R}_t$")
-    R0, Rt = model.r_numbers(betas_r, S, t_arr)
-    fig2, ax2 = plt.subplots(figsize=(9, 3))
-    ax2.plot(dates, R0, "--", color="grey", label="$\\mathcal{R}_0$ (no depletion)")
-    ax2.plot(dates, Rt, color="royalblue", linewidth=2, label="$\\mathcal{R}_t$")
-    ax2.axhline(1, color="red", linestyle="--")
-    ax2.legend(fontsize=8)
-    st.pyplot(fig2)
-
-    st.subheader("Effective hospitalisation probability $\\psi(t)$")
-    psi_t = model.psi_effective(psi_base_r, F_test_r, P, NT, t_arr)
-    fig3, ax3 = plt.subplots(figsize=(9, 3))
-    ax3.plot(dates, psi_t, color="seagreen", linewidth=2)
-    ax3.set_ylabel("$\\psi(t)$")
-    st.pyplot(fig3)
-
-    st.caption(
-        "Age doubling structure: ψ₅₀₋₅₉ = 2×ψ_base, "
-        "ψ₆₀₋₆₉ = 4×ψ_base, ψ₇₀₊ = 8×ψ_base."
-    )
-
-st.subheader("Age composition of cases, on a chosen day")
-day = st.slider("Day", int(t_arr.min()), int(t_arr.max()), 259)
-idx = int(day)
-shares = P[idx]
-fig4, ax4 = plt.subplots(figsize=(5, 3))
-ax4.bar(["0-49", "50-59", "60-69", "70+"], shares, color=["#2ca02c", "#1f77b4", "#ff7f0e", "#d62728"])
-ax4.set_ylabel("Share of cases")
-ax4.set_title(str(dates[idx].date()))
-st.pyplot(fig4)
+    with st.expander("Estimated parameters"):
+        st.dataframe(result.params, hide_index=True, use_container_width=True)
+else:
+    st.info("Answer the question(s) above to see the fitted model.")
