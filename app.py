@@ -8,9 +8,9 @@ st.set_page_config(page_title="EUVABECO COVID-19 Model Explorer", layout="center
 st.title("EUVABECO COVID-19 Model Explorer")
 st.markdown(
     """
-Henrique Pacheco, CEMAT 
+**Henrique Pacheco**, CEMAT 
 
-Erida Gjini, CEMAT*
+**Erida Gjini**, CEMAT*
 
 This simulator walks through the modeling choices conducted and shows the
 actual fitted result for the combination you pick. 
