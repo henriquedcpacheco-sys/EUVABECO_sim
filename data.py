@@ -42,7 +42,7 @@ class FitResult:
     has_bands: bool = False
 
 
-@st.cache_data
+@st.cache_data(ttl=600)
 def load_deterministic(key: str) -> FitResult:
     traj = pd.read_csv(DATA_DIR / f"{key}.csv", parse_dates=["date"])
     params = pd.read_csv(DATA_DIR / f"{key}_params.csv")
@@ -51,9 +51,16 @@ def load_deterministic(key: str) -> FitResult:
     return FitResult(key=key, label=MODEL_LABELS[key], trajectories=traj, params=params, summary=summary)
 
 
-@st.cache_data
+@st.cache_data(ttl=600)
 def load_age_bayes() -> FitResult:
     traj = pd.read_csv(DATA_DIR / "age_bayes_bands.csv", parse_dates=["date"])
     params = pd.read_csv(DATA_DIR / "age_bayes_params.csv")
     return FitResult(key="age_bayes", label=MODEL_LABELS["age_bayes"], trajectories=traj,
                       params=params, summary=None, has_bands=True)
+
+
+@st.cache_data(ttl=600)
+def load_rt(key: str) -> pd.DataFrame:
+    """R_t = beta(t) * (1/gamma_C + 1/gamma_I) * S(t)/N for the given model."""
+    rt = pd.read_csv(DATA_DIR / "rt.csv", parse_dates=["date"])
+    return rt[rt["model"] == key].reset_index(drop=True)

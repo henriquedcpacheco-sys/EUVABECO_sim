@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import streamlit as st
 
-from data import SERIES_LABELS, load_age_bayes, load_deterministic
+from data import SERIES_LABELS, load_age_bayes, load_deterministic, load_rt
 
 st.set_page_config(page_title="EUVABECO COVID-19 Model Explorer", layout="centered")
 
@@ -163,5 +163,18 @@ if model_key:
             result.params.rename(columns=param_labels),
             hide_index=True, use_container_width=True,
         )
+
+    st.subheader("Effective reproduction number")
+    rt = load_rt(model_key)
+    fig_rt, ax_rt = plt.subplots(figsize=(7, 3.5))
+    ax_rt.plot(rt["date"], rt["R0"], color="grey", lw=1.4, ls="--", label="R₀ = β(t)/γ (no depletion)")
+    ax_rt.plot(rt["date"], rt["Rt"], color="steelblue", lw=2, label="Rₜ = R₀ · S(t)/N")
+    ax_rt.axhline(1, color="black", lw=1, ls=":")
+    ax_rt.set_ylabel("Reproduction number")
+    ax_rt.tick_params(axis="x", rotation=30)
+    ax_rt.legend(fontsize=8, loc="upper right")
+    ax_rt.grid(alpha=0.3)
+    fig_rt.tight_layout()
+    st.pyplot(fig_rt)
 else:
     st.info("Answer the question(s) above to see the fitted model.")
