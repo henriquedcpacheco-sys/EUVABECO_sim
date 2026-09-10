@@ -152,6 +152,16 @@ if model_key:
     st.pyplot(fig)
 
     with st.expander("Estimated parameters"):
-        st.dataframe(result.params, hide_index=True, use_container_width=True)
+        param_labels = {
+            "name": "Parameter",
+            "point_est": "Point estimate",
+            "post_mean": "Posterior mean",
+            "ci_low": "95% CI low",
+            "ci_high": "95% CI high",
+        }
+        st.dataframe(
+            result.params.rename(columns=param_labels),
+            hide_index=True, use_container_width=True,
+        )
 else:
     st.info("Answer the question(s) above to see the fitted model.")
