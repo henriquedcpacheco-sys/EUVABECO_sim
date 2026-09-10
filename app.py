@@ -8,8 +8,8 @@ st.set_page_config(page_title="EUVABECO COVID-19 Model Explorer", layout="center
 st.title("EUVABECO COVID-19 Model Explorer")
 st.markdown(
     """
-Henrique Pacheco, CEMAT — henrique.v.pacheco@tecnico.ulisboa.pt
-Erida Gjini, CEMAT* — erida.gjini@tecnico.ulisboa.pt
+Henrique Pacheco, CEMAT 
+Erida Gjini, CEMAT*
 
 This simulator walks through the modeling choices conducted and shows the
 actual fitted result for the combination you pick. 
