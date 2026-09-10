@@ -9,6 +9,7 @@ st.title("EUVABECO COVID-19 Model Explorer")
 st.markdown(
     """
 Henrique Pacheco, CEMAT 
+
 Erida Gjini, CEMAT*
 
 This simulator walks through the modeling choices conducted and shows the
