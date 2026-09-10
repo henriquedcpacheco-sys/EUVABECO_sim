@@ -3,7 +3,7 @@ import streamlit as st
 
 from data import SERIES_LABELS, load_age_bayes, load_deterministic, load_rt
 
-st.set_page_config(page_title="EUVABECO COVID-19 Model Explorer", layout="centered")
+st.set_page_config(page_title="EUVABECO COVID-19 Model Simulator", layout="centered")
 
 st.title("EUVABECO COVID-19 Model Explorer")
 st.markdown(
