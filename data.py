@@ -16,7 +16,7 @@ DATA_DIR = Path(__file__).parent / "data"
 
 SERIES_LABELS = {
     "cases": "Daily confirmed cases",
-    "ward": "Ward occupancy (net of ICU)",
+    "ward": "Ward occupancy",
     "icu": "ICU occupancy",
     "deaths": "Daily deaths",
 }
