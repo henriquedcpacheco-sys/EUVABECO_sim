@@ -152,15 +152,19 @@ if model_key:
     st.pyplot(fig)
 
     with st.expander("Estimated parameters"):
+        params = result.params.copy()
+        if {"ci_low", "ci_high"}.issubset(params.columns):
+            params["95% CI"] = params.apply(
+                lambda r: f"[{r['ci_low']:.4f}, {r['ci_high']:.4f}]", axis=1
+            )
+            params = params.drop(columns=["ci_low", "ci_high"])
         param_labels = {
             "name": "Parameter",
             "point_est": "Point estimate",
             "post_mean": "Posterior mean",
-            "ci_low": "95% CI low",
-            "ci_high": "95% CI high",
         }
         st.dataframe(
-            result.params.rename(columns=param_labels),
+            params.rename(columns=param_labels),
             hide_index=True, use_container_width=True,
         )
 
