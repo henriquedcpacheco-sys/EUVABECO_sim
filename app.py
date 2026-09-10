@@ -9,12 +9,10 @@ st.title("EUVABECO COVID-19 Model Explorer")
 st.markdown(
     """
 Henrique Pacheco, CEMAT — henrique.v.pacheco@tecnico.ulisboa.pt
-Erida Gjini, CEMAT — erida.gjini@tecnico.ulisboa.pt
+Erida Gjini, CEMAT* — erida.gjini@tecnico.ulisboa.pt
 
-This walks through the modeling choices made in the thesis and shows the
-**actual fitted result** for the combination you pick. It is not a slider
-playground — every branch below is a specific model already fitted to
-Portugal's 2020 COVID-19 data, not something you tune live.
+This simulator walks through the modeling choices conducted and shows the
+actual fitted result for the combination you pick. 
 """
 )
 
@@ -24,7 +22,7 @@ def reset():
         st.session_state.pop(k, None)
 
 
-st.button("Start over", on_click=reset)
+
 st.divider()
 
 st.subheader("1. How are the parameters estimated?")
