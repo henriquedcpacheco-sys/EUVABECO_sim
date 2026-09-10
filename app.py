@@ -137,12 +137,16 @@ if model_key:
         d = result.trajectories[result.trajectories["series"] == series]
         ax.scatter(d["date"], d["obs"], s=6, color="grey", alpha=0.6, label="Observed")
         if result.has_bands:
-            ax.fill_between(
-                d["date"], d["pred_lo"], d["pred_hi"],
-                color="steelblue", alpha=0.20, label="95% CI (+obs. noise)",
-            )
+            # obs_lo/obs_hi include the fitted observation noise on top of
+            # parameter uncertainty -- wider, drawn first as a lighter halo.
             ax.fill_between(
                 d["date"], d["obs_lo"], d["obs_hi"],
+                color="steelblue", alpha=0.20, label="95% CI (+obs. noise)",
+            )
+            # pred_lo/pred_hi is parameter uncertainty only -- narrower,
+            # drawn on top, more opaque.
+            ax.fill_between(
+                d["date"], d["pred_lo"], d["pred_hi"],
                 color="steelblue", alpha=0.40, label="95% credible band",
             )
             ax.plot(d["date"], d["point_est"], color="steelblue", lw=1.5, label="Fitted model")
