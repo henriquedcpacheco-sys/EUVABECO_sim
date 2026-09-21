@@ -222,7 +222,7 @@ if model_key:
     if result.summary is not None:
         s = result.summary
         st.caption(
-            "Fit quality, SSR (sum of squared log-residuals, lower is better): "
+            "Fit quality, SSR (sum of squared log-residuals): "
             f"cases {s['J_cases']:.1f} · ward {s['J_ward']:.1f} · "
             f"ICU {s['J_icu']:.1f} · deaths {s['J_deaths']:.1f} · "
             f"total {s['J_total']:.1f}"
