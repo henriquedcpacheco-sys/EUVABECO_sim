@@ -118,24 +118,27 @@ def param_meaning(name: str, model_key: str) -> str:
     }.get(n, "")
 
 
-def param_latex_symbol(name: str) -> str:
-    """Bare LaTeX symbol (no surrounding $) for a parameter name."""
+_SUBSCRIPT_DIGITS = str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")
+
+
+def param_symbol(name: str) -> str:
+    """Plain-text symbol (unicode subscripts, no LaTeX) for a parameter name."""
     n = name.lower()
     if n in {f"b{k}" for k in range(1, 6)} or n in {f"beta{k}" for k in range(1, 6)}:
-        return f"\\beta_{n[-1]}"
+        return f"β{n[-1].translate(_SUBSCRIPT_DIGITS)}"
     if n == "psi0":
-        return "\\psi_0"
+        return "ψ₀"
     if n.startswith("psi") and n[3:].isdigit():
-        return f"\\psi_{n[3:]}"
+        return f"ψ{n[3:].translate(_SUBSCRIPT_DIGITS)}"
     return {
-        "psi": "\\psi",
-        "psi_base": "\\psi_{base}",
-        "theta": "\\theta",
-        "phi_h": "\\phi_h",
+        "psi": "ψ",
+        "psi_base": "ψ_base",
+        "theta": "θ",
+        "phi_h": "φ_h",
         "r_c": "r_c",
-        "f_test": "F_{test}",
-        "e0": "E_0",
-        "i0": "I_0",
+        "f_test": "F_test",
+        "e0": "E₀",
+        "i0": "I₀",
     }.get(n, name)
 
 

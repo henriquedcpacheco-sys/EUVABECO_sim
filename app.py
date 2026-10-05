@@ -11,8 +11,8 @@ from data import (
     load_deterministic,
     load_observed,
     load_rt,
-    param_latex_symbol,
     param_meaning,
+    param_symbol,
 )
 
 st.set_page_config(page_title="COVID-19 Model Simulator — Portugal", layout="wide")
@@ -234,6 +234,7 @@ if model_key and st.session_state.get("simulated"):
             )
             params = params.drop(columns=["ci_low", "ci_high"])
         params["Meaning"] = params["name"].map(lambda n: param_meaning(n, model_key))
+        params["name"] = params["name"].map(param_symbol)
         param_labels = {
             "name": "Parameter",
             "value": "Estimate",
@@ -244,15 +245,6 @@ if model_key and st.session_state.get("simulated"):
             params.rename(columns=param_labels),
             hide_index=True, use_container_width=True,
         )
-
-        value_col = next(
-            c for c in ("value", "point_est", "post_mean") if c in params.columns
-        )
-        latex_rows = [
-            f"{param_latex_symbol(r['name'])} = {r[value_col]:.4g}"
-            for _, r in params.iterrows()
-        ]
-        st.latex(r",\quad ".join(latex_rows))
 
     st.subheader("Effective reproduction number")
     st.caption("Rₜ > 1: the epidemic grows. Rₜ < 1: the epidemic shrinks.")
