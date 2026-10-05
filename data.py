@@ -27,8 +27,31 @@ MODEL_LABELS = {
     "seq_m3": "Sequential — Model 3 (testing-covariate ψ(t))",
     "sim_m1": "Model 1 — constant",
     "sim_m2": "Model 2 — piecewise ψ, one value per NPI segment",
-    "age_point": "Model 3 — age-stratified ψ (point estimate)",
-    "age_bayes": "Model 3 — age-stratified ψ (Bayesian posterior, with 95% credible bands)",
+    "age_point": "Model 3a — age-stratified ψ, with testing-volume coupling (point estimate)",
+    "age_bayes": "Model 3a — age-stratified ψ, with testing-volume coupling (Bayesian posterior, with 95% credible bands)",
+    "age_nocorr": "Model 3b — age-stratified ψ, without testing-volume coupling (point estimate)",
+}
+
+# Shown in the sidebar right after the age-stratified variant is picked,
+# since it introduces parameters the other models don't have.
+AGE_PARAM_NOTES = {
+    "3a": (
+        "This variant adds three kinds of parameter beyond Models 1/2: "
+        "**ψ_base**, the hospitalisation probability of the 0-49 age group "
+        "(the 50-59, 60-69 and 70+ groups use 2x, 4x and 8x ψ_base, mixed "
+        "each day by that day's case age composition); **E₀**, the initial "
+        "exposed count, now estimated instead of fixed; and **F_test**, how "
+        "fast the testing-volume correction Ch(t) pulls ψ down as testing "
+        "increases."
+    ),
+    "3b": (
+        "This variant adds two kinds of parameter beyond Models 1/2: "
+        "**ψ_base**, the hospitalisation probability of the 0-49 age group "
+        "(the 50-59, 60-69 and 70+ groups use 2x, 4x and 8x ψ_base, mixed "
+        "each day by that day's case age composition) and **E₀**, the "
+        "initial exposed count, now estimated instead of fixed. There is no "
+        "testing-volume correction here, so no F_test parameter."
+    ),
 }
 
 

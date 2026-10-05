@@ -3,6 +3,7 @@ import pandas as pd
 import streamlit as st
 
 from data import (
+    AGE_PARAM_NOTES,
     ESTIMATED_PARAMS,
     FIXED_PARAMS,
     NPI_EVENTS,
@@ -63,7 +64,8 @@ model_choice = sb.radio(
     [
         "Model 1 — constant",
         "Model 2 — piecewise ψ, one value per NPI segment",
-        "Model 3 — age-stratified ψ, weighted by case age composition and testing volume",
+        "Model 3a — age-stratified ψ, with testing-volume coupling",
+        "Model 3b — age-stratified ψ, without testing-volume coupling",
     ],
     index=None,
     key="model_choice",
@@ -76,24 +78,34 @@ if model_choice == "Model 1 — constant":
     model_key = "sim_m1"
 elif model_choice == "Model 2 — piecewise ψ, one value per NPI segment":
     model_key = "sim_m2"
-elif model_choice == "Model 3 — age-stratified ψ, weighted by case age composition and testing volume":
-    sb.subheader("2. Choose point estimate or Bayesian credible bands")
+elif model_choice == "Model 3a — age-stratified ψ, with testing-volume coupling":
+    sb.info(AGE_PARAM_NOTES["3a"])
+    sb.subheader("2. Choose the fitting method")
     bayes_choice = sb.radio(
-        "Bayesian bands",
-        ["Point estimate only", "95% credible bands"],
+        "Fitting method",
+        [
+            "Point estimate (least squares)",
+            "95% credible bands (Bayesian MCMC)",
+        ],
         index=None,
         key="bayes",
         label_visibility="collapsed",
         help=(
-            "Bayesian bands come from an MCMC (DRAM) run over this model's "
-            "parameters, propagated through the ODE to give a posterior "
-            "predictive uncertainty range, not a single best-fit line."
+            "Least squares: lsqnonlin finds the single parameter set that "
+            "minimises J directly. Bayesian MCMC (DRAM): starts a Markov "
+            "chain at that same least-squares point and samples the full "
+            "posterior distribution of the parameters, propagated through "
+            "the ODE to give a predictive uncertainty range instead of one "
+            "best-fit line."
         ),
     )
-    if bayes_choice == "Point estimate only":
+    if bayes_choice == "Point estimate (least squares)":
         model_key = "age_point"
-    elif bayes_choice == "95% credible bands":
+    elif bayes_choice == "95% credible bands (Bayesian MCMC)":
         model_key = "age_bayes"
+elif model_choice == "Model 3b — age-stratified ψ, without testing-volume coupling":
+    sb.info(AGE_PARAM_NOTES["3b"])
+    model_key = "age_nocorr"
 
 sb.markdown("")
 run_clicked = sb.button("Simulate", use_container_width=True)
@@ -179,18 +191,27 @@ if model_key and st.session_state.get("simulated"):
     result = load_age_bayes() if model_key == "age_bayes" else load_deterministic(model_key)
     st.subheader(result.label)
 
+    if result.has_bands:
+        st.caption(
+            "Bayesian fit (MCMC/DRAM) — shown in a different colour from the "
+            "least-squares fits above. The chain was started at the "
+            "least-squares point estimate and run from there to sample the "
+            "full posterior."
+        )
+
     fig, axes = plt.subplots(2, 2, figsize=(10, 6.4))
     for ax, series in zip(axes.flat, SERIES):
         d = in_window(result.trajectories[result.trajectories["series"] == series])
         ax.scatter(d["date"], d["obs"], s=6, color="grey", alpha=0.6, label="Observed")
         if result.has_bands:
             # pred_lo/pred_hi is parameter uncertainty only (the credible
-            # band on the model's underlying trajectory).
+            # band on the model's underlying trajectory). Seagreen, not
+            # steelblue, to visually flag this as the Bayesian fit.
             ax.fill_between(
                 d["date"], d["pred_lo"], d["pred_hi"],
-                color="steelblue", alpha=0.40, label="95% credible band",
+                color="seagreen", alpha=0.35, label="95% credible band (Bayesian)",
             )
-            ax.plot(d["date"], d["point_est"], color="steelblue", lw=1.5, label="Fitted model")
+            ax.plot(d["date"], d["point_est"], color="seagreen", lw=1.5, label="Posterior mean")
         else:
             ax.plot(d["date"], d["sim"], color="steelblue", lw=1.5, label="Fitted model")
         mark_changepoints(ax)
