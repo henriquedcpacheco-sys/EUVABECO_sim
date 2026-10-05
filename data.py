@@ -118,6 +118,27 @@ def param_meaning(name: str, model_key: str) -> str:
     }.get(n, "")
 
 
+def param_latex_symbol(name: str) -> str:
+    """Bare LaTeX symbol (no surrounding $) for a parameter name."""
+    n = name.lower()
+    if n in {f"b{k}" for k in range(1, 6)} or n in {f"beta{k}" for k in range(1, 6)}:
+        return f"\\beta_{n[-1]}"
+    if n == "psi0":
+        return "\\psi_0"
+    if n.startswith("psi") and n[3:].isdigit():
+        return f"\\psi_{n[3:]}"
+    return {
+        "psi": "\\psi",
+        "psi_base": "\\psi_{base}",
+        "theta": "\\theta",
+        "phi_h": "\\phi_h",
+        "r_c": "r_c",
+        "f_test": "F_{test}",
+        "e0": "E_0",
+        "i0": "I_0",
+    }.get(n, name)
+
+
 @st.cache_data(ttl=600)
 def load_observed() -> pd.DataFrame:
     """Observed daily series (identical in every model file), long format: date, series, obs."""
