@@ -61,7 +61,7 @@ sb.subheader("1. Pick a model, based on how the hospitalisation probability is c
 model_choice = sb.radio(
     "Model",
     [
-        "Model 1 — constant clinical parameters",
+        "Model 1 — constant",
         "Model 2 — piecewise ψ, one value per NPI segment",
         "Model 3 — age-stratified ψ, weighted by case age composition and testing volume",
     ],
@@ -72,7 +72,7 @@ model_choice = sb.radio(
 
 model_key = None
 
-if model_choice == "Model 1 — constant clinical parameters":
+if model_choice == "Model 1 — constant":
     model_key = "sim_m1"
 elif model_choice == "Model 2 — piecewise ψ, one value per NPI segment":
     model_key = "sim_m2"
@@ -179,15 +179,6 @@ if model_key and st.session_state.get("simulated"):
     result = load_age_bayes() if model_key == "age_bayes" else load_deterministic(model_key)
     st.subheader(result.label)
 
-    if result.summary is not None:
-        s = result.summary
-        st.caption(
-            "Fit quality, SSR (sum of squared log-residuals): "
-            f"cases {s['J_cases']:.1f} · ward {s['J_ward']:.1f} · "
-            f"ICU {s['J_icu']:.1f} · deaths {s['J_deaths']:.1f} · "
-            f"total {s['J_total']:.1f}"
-        )
-
     fig, axes = plt.subplots(2, 2, figsize=(10, 6.4))
     for ax, series in zip(axes.flat, SERIES):
         d = in_window(result.trajectories[result.trajectories["series"] == series])
@@ -208,6 +199,32 @@ if model_key and st.session_state.get("simulated"):
     axes.flat[0].legend(fontsize=7, loc="upper left")
     fig.tight_layout()
     st.pyplot(fig)
+
+    if result.summary is not None:
+        s = result.summary
+        st.subheader("Objective function")
+        st.markdown(
+            "Parameters are estimated by minimising the sum of squared "
+            "log-residuals between each observed series and its simulated "
+            "counterpart, summed over the four series:"
+        )
+        st.latex(
+            r"J = \sum_{s \,\in\, \{\text{cases, ward, ICU, deaths}\}} "
+            r"\sum_{t} \Big(\log(y_s(t)+1) - \log(\hat{y}_s(t)+1)\Big)^2"
+        )
+        j_table = pd.DataFrame(
+            {
+                "Series": ["Cases", "Ward", "ICU", "Deaths", "Total"],
+                "J": [
+                    round(s["J_cases"], 1),
+                    round(s["J_ward"], 1),
+                    round(s["J_icu"], 1),
+                    round(s["J_deaths"], 1),
+                    round(s["J_total"], 1),
+                ],
+            }
+        )
+        st.dataframe(j_table, hide_index=True, use_container_width=True)
 
     with st.expander("Estimated parameters", expanded=True):
         params = result.params.copy()
