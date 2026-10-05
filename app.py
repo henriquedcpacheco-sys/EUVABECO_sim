@@ -16,6 +16,20 @@ from data import (
 
 st.set_page_config(page_title="EUVABECO COVID-19 Model Simulator", layout="wide")
 
+st.markdown(
+    """
+    <style>
+    [data-testid="stSidebar"] {
+        background-color: #a0470c;
+    }
+    [data-testid="stSidebar"] * {
+        color: #ffffff;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 SERIES = ["cases", "ward", "icu", "deaths"]
 CP_DATES = [pd.Timestamp(e[2]) for e in NPI_EVENTS]
 
@@ -56,91 +70,43 @@ period = sb.slider(
 )
 start, end = pd.Timestamp(period[0]), pd.Timestamp(period[1])
 
-sb.subheader("1. How are the parameters estimated?")
-approach = sb.radio(
-    "Estimation approach",
-    ["Sequential", "Simultaneous"],
+sb.subheader("1. Pick a model, based on how the hospitalisation probability is constructed")
+model_choice = sb.radio(
+    "Model",
+    [
+        "Model 1 — constant clinical parameters",
+        "Model 2 — piecewise ψ, one value per NPI segment",
+        "Model 3 — age-stratified ψ, weighted by case age composition and testing volume",
+    ],
     index=None,
-    key="approach",
+    key="model_choice",
     label_visibility="collapsed",
-    help=(
-        "Sequential: transmission rates β are fit first to confirmed cases alone "
-        "(Stage I), then clinical parameters are fit to hospital/ICU/death data "
-        "holding β fixed (Stage II). Simultaneous: everything is fit jointly, "
-        "in one optimisation over all four series at once."
-    ),
 )
 
 model_key = None
 
-if approach == "Sequential":
-    sb.subheader("2. Which clinical-parameter model?")
-    seq_choice = sb.radio(
-        "Sequential model",
-        [
-            "Model 1 — constant clinical parameters",
-            "Model 2 — piecewise ψ, one value per NPI segment",
-            "Model 3 — ψ(t) driven by the testing-volume covariate",
-        ],
+if model_choice == "Model 1 — constant clinical parameters":
+    model_key = "sim_m1"
+elif model_choice == "Model 2 — piecewise ψ, one value per NPI segment":
+    model_key = "sim_m2"
+elif model_choice == "Model 3 — age-stratified ψ, weighted by case age composition and testing volume":
+    sb.subheader("2. Choose point estimate or Bayesian credible bands")
+    bayes_choice = sb.radio(
+        "Bayesian bands",
+        ["Point estimate only", "95% credible bands"],
         index=None,
-        key="seq_model",
-        label_visibility="collapsed",
-    )
-    model_key = {
-        "Model 1 — constant clinical parameters": "seq_m1",
-        "Model 2 — piecewise ψ, one value per NPI segment": "seq_m2",
-        "Model 3 — ψ(t) driven by the testing-volume covariate": "seq_m3",
-    }.get(seq_choice)
-
-elif approach == "Simultaneous":
-    sb.subheader("2. Include the age-stratified extension?")
-    age_choice = sb.radio(
-        "Age extension",
-        ["No", "Yes"],
-        index=None,
-        key="age",
+        key="bayes",
         label_visibility="collapsed",
         help=(
-            "The age-stratified extension replaces the piecewise ψ with an "
-            "age-weighted hospitalisation probability, driven by the daily age "
-            "composition of confirmed cases and corrected for testing volume."
+            "Bayesian bands come from an MCMC (DRAM) run over this model's "
+            "parameters, propagated through the ODE to give a posterior "
+            "predictive uncertainty range, not a single best-fit line."
         ),
     )
-    if age_choice == "No":
-        sb.subheader("3. Which clinical-parameter model?")
-        sim_choice = sb.radio(
-            "Simultaneous model",
-            [
-                "Model 1 — constant clinical parameters",
-                "Model 2 — piecewise ψ, one value per NPI segment",
-            ],
-            index=None,
-            key="sim_model",
-            label_visibility="collapsed",
-            help="Model 3 is not offered here: it does not converge under simultaneous fitting.",
-        )
-        model_key = {
-            "Model 1 — constant clinical parameters": "sim_m1",
-            "Model 2 — piecewise ψ, one value per NPI segment": "sim_m2",
-        }.get(sim_choice)
-    elif age_choice == "Yes":
-        sb.subheader("3. Show Bayesian posterior uncertainty?")
-        bayes_choice = sb.radio(
-            "Bayesian bands",
-            ["No — point estimate only", "Yes — with 95% credible bands"],
-            index=None,
-            key="bayes",
-            label_visibility="collapsed",
-            help=(
-                "Bayesian bands come from an MCMC (DRAM) run over this model's "
-                "parameters, propagated through the ODE to give a posterior "
-                "predictive uncertainty range, not a single best-fit line."
-            ),
-        )
-        if bayes_choice == "No — point estimate only":
-            model_key = "age_point"
-        elif bayes_choice == "Yes — with 95% credible bands":
-            model_key = "age_bayes"
+    if bayes_choice == "Point estimate only":
+        model_key = "age_point"
+    elif bayes_choice == "95% credible bands":
+        model_key = "age_bayes"
 
 
 def in_window(df: pd.DataFrame) -> pd.DataFrame:
@@ -193,22 +159,18 @@ st.caption(
 # ----------------------------------------------------------------------------
 # 2. Parameters
 # ----------------------------------------------------------------------------
-st.header("2. What the parameters mean")
+st.header("2. Parameter's Meaning")
 col_fixed, col_est = st.columns(2)
 with col_fixed:
     st.markdown("**Fixed (from the literature)**")
-    st.dataframe(
-        pd.DataFrame(FIXED_PARAMS, columns=["Parameter", "Meaning"]),
-        hide_index=True,
-        use_container_width=True,
-    )
+    df_fixed = pd.DataFrame(FIXED_PARAMS, columns=["Parameter", "Meaning"])
+    df_fixed.insert(0, "#", range(1, len(df_fixed) + 1))
+    st.dataframe(df_fixed, hide_index=True, use_container_width=True)
 with col_est:
     st.markdown("**Estimated from the data**")
-    st.dataframe(
-        pd.DataFrame(ESTIMATED_PARAMS, columns=["Parameter", "Meaning"]),
-        hide_index=True,
-        use_container_width=True,
-    )
+    df_est = pd.DataFrame(ESTIMATED_PARAMS, columns=["Parameter", "Meaning"])
+    df_est.insert(0, "#", range(1, len(df_est) + 1))
+    st.dataframe(df_est, hide_index=True, use_container_width=True)
 
 # ----------------------------------------------------------------------------
 # 3. Results for the chosen model
@@ -283,4 +245,4 @@ if model_key:
     fig_rt.tight_layout()
     st.pyplot(fig_rt)
 else:
-    st.info("Answer the question(s) in the menu on the left to see the fitted model.")
+    st.info("Pick a model in the menu on the left to see the fitted result.")
