@@ -250,8 +250,10 @@ if model_key and st.session_state.get("simulated"):
     st.caption("Rₜ > 1: the epidemic grows. Rₜ < 1: the epidemic shrinks.")
     rt = in_window(load_rt(model_key))
     fig_rt, ax_rt = plt.subplots(figsize=(8, 3.6))
-    ax_rt.plot(rt["date"], rt["R0"], color="grey", lw=1.4, ls="--", label="R₀ = β(t)/γ (no depletion)")
-    ax_rt.plot(rt["date"], rt["Rt"], color="steelblue", lw=2, label="Rₜ = R₀ · S(t)/N")
+    ax_rt.plot(
+        rt["date"], rt["Rt"], color="steelblue", lw=2,
+        label="Rₜ = β(t)(1/γ_C + 1/γ_I) · S(t)/N",
+    )
     ax_rt.axhline(1, color="black", lw=1, ls=":")
     mark_changepoints(ax_rt)
     ax_rt.set_ylabel("Reproduction number")
