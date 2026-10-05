@@ -20,10 +20,17 @@ st.markdown(
     """
     <style>
     [data-testid="stSidebar"] {
-        background-color: #ff7518;
+        background-color: #e8630f;
     }
     [data-testid="stSidebar"] * {
         color: #ffffff;
+    }
+    [data-testid="stSlider"] div[data-baseweb="slider"] div[role="slider"] {
+        background-color: #90ee90 !important;
+        border-color: #90ee90 !important;
+    }
+    [data-testid="stSlider"] div[data-baseweb="slider"] > div > div {
+        background: #90ee90 !important;
     }
     </style>
     """,
