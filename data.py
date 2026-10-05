@@ -25,7 +25,7 @@ MODEL_LABELS = {
     "seq_m1": "Sequential — Model 1 (constant clinical parameters)",
     "seq_m2": "Sequential — Model 2 (piecewise ψ)",
     "seq_m3": "Sequential — Model 3 (testing-covariate ψ(t))",
-    "sim_m1": "Model 1 — constant clinical parameters",
+    "sim_m1": "Model 1 — constant",
     "sim_m2": "Model 2 — piecewise ψ, one value per NPI segment",
     "age_point": "Model 3 — age-stratified ψ (point estimate)",
     "age_bayes": "Model 3 — age-stratified ψ (Bayesian posterior, with 95% credible bands)",
