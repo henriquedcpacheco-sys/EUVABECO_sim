@@ -11,31 +11,11 @@ from data import (
     load_deterministic,
     load_observed,
     load_rt,
+    param_latex_symbol,
     param_meaning,
 )
 
-st.set_page_config(page_title="EUVABECO COVID-19 Model Simulator", layout="wide")
-
-st.markdown(
-    """
-    <style>
-    [data-testid="stSidebar"] {
-        background-color: #e8630f;
-    }
-    [data-testid="stSidebar"] * {
-        color: #ffffff;
-    }
-    [data-testid="stSlider"] div[data-baseweb="slider"] div[role="slider"] {
-        background-color: #90ee90 !important;
-        border-color: #90ee90 !important;
-    }
-    [data-testid="stSlider"] div[data-baseweb="slider"] > div > div {
-        background: #90ee90 !important;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+st.set_page_config(page_title="COVID-19 Model Simulator — Portugal", layout="wide")
 
 SERIES = ["cases", "ward", "icu", "deaths"]
 CP_DATES = [pd.Timestamp(e[2]) for e in NPI_EVENTS]
@@ -43,7 +23,7 @@ CP_DATES = [pd.Timestamp(e[2]) for e in NPI_EVENTS]
 # ----------------------------------------------------------------------------
 # Header
 # ----------------------------------------------------------------------------
-st.title("EUVABECO COVID-19 Model Simulator")
+st.title("COVID-19 Model Simulator — Portugal")
 st.markdown(
     """
 **Henrique Pacheco**, CEMAT &nbsp;&nbsp;|&nbsp;&nbsp; **Erida Gjini**, CEMAT*
@@ -115,6 +95,17 @@ elif model_choice == "Model 3 — age-stratified ψ, weighted by case age compos
     elif bayes_choice == "95% credible bands":
         model_key = "age_bayes"
 
+sb.markdown("")
+run_clicked = sb.button("Simulate", use_container_width=True)
+
+if "last_model_key" not in st.session_state:
+    st.session_state.last_model_key = None
+if model_key != st.session_state.last_model_key:
+    st.session_state.simulated = False
+    st.session_state.last_model_key = model_key
+if run_clicked:
+    st.session_state.simulated = True
+
 
 def in_window(df: pd.DataFrame) -> pd.DataFrame:
     return df[(df["date"] >= start) & (df["date"] <= end)]
@@ -184,7 +175,7 @@ with col_est:
 # ----------------------------------------------------------------------------
 st.header("3. Fitted model")
 
-if model_key:
+if model_key and st.session_state.get("simulated"):
     result = load_age_bayes() if model_key == "age_bayes" else load_deterministic(model_key)
     st.subheader(result.label)
 
@@ -237,6 +228,15 @@ if model_key:
             hide_index=True, use_container_width=True,
         )
 
+        value_col = next(
+            c for c in ("value", "point_est", "post_mean") if c in params.columns
+        )
+        latex_rows = [
+            f"{param_latex_symbol(r['name'])} = {r[value_col]:.4g}"
+            for _, r in params.iterrows()
+        ]
+        st.latex(r",\quad ".join(latex_rows))
+
     st.subheader("Effective reproduction number")
     st.caption("Rₜ > 1: the epidemic grows. Rₜ < 1: the epidemic shrinks.")
     rt = in_window(load_rt(model_key))
@@ -251,5 +251,7 @@ if model_key:
     ax_rt.grid(alpha=0.3)
     fig_rt.tight_layout()
     st.pyplot(fig_rt)
+elif model_key:
+    st.info("Press **Simulate** in the menu on the left to see the fitted result.")
 else:
     st.info("Pick a model in the menu on the left to see the fitted result.")
