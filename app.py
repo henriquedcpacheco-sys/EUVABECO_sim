@@ -4,6 +4,7 @@ import zipfile
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import streamlit as st
 
@@ -24,6 +25,7 @@ from data import (
 st.set_page_config(page_title="COVID-19 Model Simulator — Portugal", layout="wide")
 
 SERIES = ["cases", "ward", "icu", "deaths"]
+SERIES_COLORS = {"cases": "#0072BD", "ward": "#D95319", "icu": "#7E2F8E", "deaths": "#000000"}
 CP_DATES = [pd.Timestamp(e[2]) for e in NPI_EVENTS]
 
 # ----------------------------------------------------------------------------
@@ -280,6 +282,39 @@ if model_key and st.session_state.get("simulated"):
         )
         st.dataframe(j_table, hide_index=True, use_container_width=True)
 
+    st.subheader("Weekly residual breakdown")
+    st.markdown(
+        "Each series is fit on the same log scale as the objective function "
+        "above, so their squared log-residuals are directly comparable "
+        "week to week without any further rescaling -- this is literally J "
+        "broken down by week and by series. A taller coloured segment means "
+        "that series is further from the data that week; the tallest bar "
+        "overall is the week the fit struggles with most."
+    )
+    sim_col = "point_est" if result.has_bands else "sim"
+    resid = in_window(result.trajectories[["date", "series", "obs", sim_col]]).copy()
+    resid["sq_log_resid"] = (
+        np.log(resid[sim_col].clip(lower=0) + 1) - np.log(resid["obs"] + 1)
+    ) ** 2
+    resid["week"] = resid["date"].dt.to_period("W").dt.start_time
+    weekly = resid.groupby(["week", "series"])["sq_log_resid"].sum().unstack("series")
+    weekly = weekly.reindex(columns=SERIES).fillna(0.0)
+
+    fig_resid, ax_resid = plt.subplots(figsize=(10, 4))
+    bottom = np.zeros(len(weekly))
+    for s in SERIES:
+        ax_resid.bar(
+            weekly.index, weekly[s].values, bottom=bottom,
+            color=SERIES_COLORS[s], label=SERIES_LABELS[s], width=5.5,
+        )
+        bottom += weekly[s].values
+    mark_changepoints(ax_resid)
+    ax_resid.set_ylabel("Weekly squared log-residual")
+    ax_resid.tick_params(axis="x", rotation=30)
+    ax_resid.legend(fontsize=8, loc="upper left")
+    fig_resid.tight_layout()
+    st.pyplot(fig_resid)
+
     with st.expander("Estimated parameters", expanded=True):
         params = result.params.copy()
         if {"ci_low", "ci_high"}.issubset(params.columns):
@@ -321,10 +356,12 @@ if model_key and st.session_state.get("simulated"):
     with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
         if result.summary is not None:
             zf.writestr("objective_function_J.csv", j_table.to_csv(index=False))
+        zf.writestr("weekly_residual_breakdown.csv", weekly.to_csv())
         params_csv = params.rename(columns=param_labels)
         zf.writestr("estimated_parameters.csv", params_csv.to_csv(index=False))
         for name, f in [
             ("fitted_model.png", fig),
+            ("weekly_residual_breakdown.png", fig_resid),
             ("effective_reproduction_number.png", fig_rt),
         ]:
             buf = io.BytesIO()
