@@ -1,3 +1,8 @@
+import base64
+import io
+import zipfile
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 import pandas as pd
 import streamlit as st
@@ -141,6 +146,33 @@ st.markdown(
     "introduced: the daily age composition of confirmed cases, and the daily "
     "testing volume."
 )
+st.markdown(
+    "**Data sources**: daily confirmed cases, deaths, ward/ICU occupancy and "
+    "the age breakdown of confirmed cases come from DSSG Portugal's "
+    "[covid19pt-data](https://github.com/dssg-pt/covid19pt-data) project. "
+    "Daily testing volume comes from "
+    "[Our World in Data](https://github.com/owid/covid-19-data)'s testing "
+    "dataset."
+)
+
+model_ref_path = Path(__file__).parent / "data" / "model_reference.pdf"
+if model_ref_path.exists():
+    pdf_bytes = model_ref_path.read_bytes()
+    b64 = base64.b64encode(pdf_bytes).decode()
+    col_view, col_dl = st.columns([1, 1])
+    with col_view:
+        st.markdown(
+            f'<a href="data:application/pdf;base64,{b64}" target="_blank">'
+            "View the model scheme and equations (opens in a new tab)</a>",
+            unsafe_allow_html=True,
+        )
+    with col_dl:
+        st.download_button(
+            "Download model scheme and equations (PDF)",
+            data=pdf_bytes,
+            file_name="model_reference.pdf",
+            mime="application/pdf",
+        )
 
 fig_data, axes = plt.subplots(2, 2, figsize=(10, 5.6))
 for ax, series in zip(axes.flat, SERIES):
@@ -284,6 +316,26 @@ if model_key and st.session_state.get("simulated"):
     ax_rt.grid(alpha=0.3)
     fig_rt.tight_layout()
     st.pyplot(fig_rt)
+
+    zip_buf = io.BytesIO()
+    with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        if result.summary is not None:
+            zf.writestr("objective_function_J.csv", j_table.to_csv(index=False))
+        params_csv = params.rename(columns=param_labels)
+        zf.writestr("estimated_parameters.csv", params_csv.to_csv(index=False))
+        for name, f in [
+            ("fitted_model.png", fig),
+            ("effective_reproduction_number.png", fig_rt),
+        ]:
+            buf = io.BytesIO()
+            f.savefig(buf, format="png", dpi=200, bbox_inches="tight")
+            zf.writestr(name, buf.getvalue())
+    st.download_button(
+        "Download all results (plots + J + parameters)",
+        data=zip_buf.getvalue(),
+        file_name=f"{model_key}_results.zip",
+        mime="application/zip",
+    )
 elif model_key:
     st.info("Press **Simulate** in the menu on the left to see the fitted result.")
 else:
