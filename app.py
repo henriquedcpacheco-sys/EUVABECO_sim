@@ -136,7 +136,10 @@ st.header("1. Data and fixed dates")
 st.markdown(
     "Four observed daily series for Portugal in 2020. The dashed vertical lines are "
     "the **fixed NPI dates** (non-pharmaceutical interventions): the transmission "
-    "rate β is constant between them, and can change at each one."
+    "rate β is constant between them, and can change at each one. "
+    "For the age-stratified model and the testing-volume coupling, new data is "
+    "introduced: the daily age composition of confirmed cases, and the daily "
+    "testing volume."
 )
 
 fig_data, axes = plt.subplots(2, 2, figsize=(10, 5.6))
