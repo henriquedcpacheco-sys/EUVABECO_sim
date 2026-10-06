@@ -193,10 +193,8 @@ if model_key and st.session_state.get("simulated"):
 
     if result.has_bands:
         st.caption(
-            "Bayesian fit (MCMC/DRAM) — shown in a different colour from the "
-            "least-squares fits above. The chain was started at the "
-            "least-squares point estimate and run from there to sample the "
-            "full posterior."
+            "The chain was started at the least-squares point estimate and "
+            "run from there to sample the full posterior."
         )
 
     fig, axes = plt.subplots(2, 2, figsize=(10, 6.4))
