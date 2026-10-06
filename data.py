@@ -40,17 +40,16 @@ AGE_PARAM_NOTES = {
         "**ψ_base**, the hospitalisation probability of the 0-49 age group "
         "(the 50-59, 60-69 and 70+ groups use 2x, 4x and 8x ψ_base, mixed "
         "each day by that day's case age composition); **E₀**, the initial "
-        "exposed count, now estimated instead of fixed; and **F_test**, how "
-        "fast the testing-volume correction Ch(t) pulls ψ down as testing "
-        "increases."
+        "exposed count; and **F_test**, how fast the testing-volume "
+        "correction Ch(t) pulls ψ down as testing increases."
     ),
     "3b": (
         "This variant adds two kinds of parameter beyond Models 1/2: "
         "**ψ_base**, the hospitalisation probability of the 0-49 age group "
         "(the 50-59, 60-69 and 70+ groups use 2x, 4x and 8x ψ_base, mixed "
         "each day by that day's case age composition) and **E₀**, the "
-        "initial exposed count, now estimated instead of fixed. There is no "
-        "testing-volume correction here, so no F_test parameter."
+        "initial exposed count. There is no testing-volume correction here, "
+        "so no F_test parameter."
     ),
 }
 
@@ -91,7 +90,7 @@ def load_rt(key: str) -> pd.DataFrame:
 
 # Fixed NPI dates: (event, policy date, estimated changepoint date, days after policy)
 NPI_EVENTS = [
-    ("State of emergency (first national lockdown)", "2020-03-18", "2020-04-01", 14),
+    ("State of emergency (first national lockdown)", "2020-03-18", "2020-03-30", 12),
     ("Phased deconfinement begins", "2020-05-04", "2020-05-10", 6),
     ("Schools reopen", "2020-09-14", "2020-09-14", 0),
     ("Second state of emergency", "2020-11-04", "2020-11-06", 2),
