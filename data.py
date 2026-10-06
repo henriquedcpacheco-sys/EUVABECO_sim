@@ -36,20 +36,19 @@ MODEL_LABELS = {
 # since it introduces parameters the other models don't have.
 AGE_PARAM_NOTES = {
     "3a": (
-        "This variant adds three kinds of parameter beyond Models 1/2: "
-        "**ψ_base**, the hospitalisation probability of the 0-49 age group "
-        "(the 50-59, 60-69 and 70+ groups use 2x, 4x and 8x ψ_base, mixed "
-        "each day by that day's case age composition); **E₀**, the initial "
-        "exposed count; and **F_test**, how fast the testing-volume "
-        "correction Ch(t) pulls ψ down as testing increases."
-    ),
-    "3b": (
         "This variant adds two kinds of parameter beyond Models 1/2: "
         "**ψ_base**, the hospitalisation probability of the 0-49 age group "
         "(the 50-59, 60-69 and 70+ groups use 2x, 4x and 8x ψ_base, mixed "
-        "each day by that day's case age composition) and **E₀**, the "
-        "initial exposed count. There is no testing-volume correction here, "
-        "so no F_test parameter."
+        "each day by that day's case age composition); and **F_test**, how "
+        "fast the testing-volume coupling Ch(t) pulls ψ down as testing "
+        "increases."
+    ),
+    "3b": (
+        "This variant adds one kind of parameter beyond Models 1/2: "
+        "**ψ_base**, the hospitalisation probability of the 0-49 age group "
+        "(the 50-59, 60-69 and 70+ groups use 2x, 4x and 8x ψ_base, mixed "
+        "each day by that day's case age composition). There is no "
+        "testing-volume coupling here, so no F_test parameter."
     ),
 }
 
@@ -105,6 +104,7 @@ FIXED_PARAMS = [
     ("γ_ICU = 1/20 per day", "ICU discharge rate"),
     ("φ_q = 0.002", "Fatality probability outside hospital"),
     ("N = 10 000 000", "Population"),
+    ("I₀ = 1", "Initial infectious individuals"),
 ]
 
 ESTIMATED_PARAMS = [
@@ -113,7 +113,7 @@ ESTIMATED_PARAMS = [
     ("θ", "Probability that a ward patient is admitted to ICU"),
     ("φ_h", "Fatality probability in the ward"),
     ("r_c", "ICU/ward mortality ratio, so the ICU fatality is φ_c = r_c · φ_h"),
-    ("E₀ (I₀)", "Initial exposed (infectious) individuals, when estimated"),
+    ("E₀", "Initial exposed individuals"),
 ]
 
 
