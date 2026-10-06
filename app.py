@@ -283,14 +283,6 @@ if model_key and st.session_state.get("simulated"):
         st.dataframe(j_table, hide_index=True, use_container_width=True)
 
     st.subheader("Weekly residual breakdown")
-    st.markdown(
-        "Each series is fit on the same log scale as the objective function "
-        "above, so their squared log-residuals are directly comparable "
-        "week to week without any further rescaling -- this is literally J "
-        "broken down by week and by series. A taller coloured segment means "
-        "that series is further from the data that week; the tallest bar "
-        "overall is the week the fit struggles with most."
-    )
     sim_col = "point_est" if result.has_bands else "sim"
     resid = in_window(result.trajectories[["date", "series", "obs", sim_col]]).copy()
     resid["sq_log_resid"] = (
