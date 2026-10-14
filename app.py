@@ -99,11 +99,9 @@ elif model_choice == "Model 3a — age-stratified ψ, with testing-volume coupli
         label_visibility="collapsed",
         help=(
             "Least squares: lsqnonlin finds the single parameter set that "
-            "minimises J directly. Bayesian MCMC (DRAM): starts a Markov "
-            "chain at that same least-squares point and samples the full "
+            "minimises J directly. Bayesian MCMC (DRAM): samples the full "
             "posterior distribution of the parameters, propagated through "
-            "the ODE to give a predictive uncertainty range instead of one "
-            "best-fit line."
+            "the ODE to give uncertainty bands instead of one best-fit line."
         ),
     )
     if bayes_choice == "Point estimate (least squares)":
@@ -229,25 +227,40 @@ if model_key and st.session_state.get("simulated"):
     st.subheader(result.label)
 
     if result.has_bands:
+        st.markdown(
+            "A short pilot chain first tunes the sampler; three longer chains "
+            "(one started at the least-squares estimate, two started well away "
+            "from it) are then run and pooled once they agree. The fitting is "
+            "done on the effective sample size of the time series: consecutive "
+            "days tend to share the same deviation from the model, so the data "
+            "carry fewer independent observations than the raw number of days, "
+            "and the bands reflect that."
+        )
         st.caption(
-            "The chain was started at the least-squares point estimate and "
-            "run from there to sample the full posterior."
+            "Darker band: 95% credible interval on the model's trajectory "
+            "(parameter uncertainty only). Lighter band: 95% posterior "
+            "predictive interval, where a new day's observation would be "
+            "expected to fall (parameters plus observation noise). Black "
+            "squares: observed data."
         )
 
     fig, axes = plt.subplots(2, 2, figsize=(10, 6.4))
     for ax, series in zip(axes.flat, SERIES):
         d = in_window(result.trajectories[result.trajectories["series"] == series])
-        ax.scatter(d["date"], d["obs"], s=6, color="grey", alpha=0.6, label="Observed")
         if result.has_bands:
-            # pred_lo/pred_hi is parameter uncertainty only (the credible
-            # band on the model's underlying trajectory). Seagreen, not
-            # steelblue, to visually flag this as the Bayesian fit.
+            # obs_* = posterior predictive, pred_* = parameter-only credible band
+            c = SERIES_COLORS[series]
+            ax.fill_between(
+                d["date"], d["obs_lo"], d["obs_hi"],
+                color=c, alpha=0.15, lw=0, label="95% posterior predictive",
+            )
             ax.fill_between(
                 d["date"], d["pred_lo"], d["pred_hi"],
-                color="seagreen", alpha=0.35, label="95% credible band (Bayesian)",
+                color=c, alpha=0.35, lw=0, label="95% credible interval",
             )
-            ax.plot(d["date"], d["point_est"], color="seagreen", lw=1.5, label="Posterior mean")
+            ax.scatter(d["date"], d["obs"], s=7, marker="s", color="black", label="Observed")
         else:
+            ax.scatter(d["date"], d["obs"], s=6, color="grey", alpha=0.6, label="Observed")
             ax.plot(d["date"], d["sim"], color="steelblue", lw=1.5, label="Fitted model")
         mark_changepoints(ax)
         ax.set_title(SERIES_LABELS[series])

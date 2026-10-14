@@ -28,7 +28,7 @@ MODEL_LABELS = {
     "sim_m1": "Model 1 — constant",
     "sim_m2": "Model 2 — piecewise ψ, one value per NPI segment",
     "age_point": "Model 3a — age-stratified ψ, with testing-volume coupling (point estimate)",
-    "age_bayes": "Model 3a — age-stratified ψ, with testing-volume coupling (Bayesian posterior, with 95% credible bands)",
+    "age_bayes": "Model 3a — age-stratified ψ, with testing-volume coupling (Bayesian posterior, with 95% credible and predictive bands)",
     "age_nocorr": "Model 3b — age-stratified ψ, without testing-volume coupling (point estimate)",
 }
 
