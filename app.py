@@ -1,4 +1,3 @@
-import base64
 import io
 import zipfile
 from pathlib import Path
@@ -155,17 +154,23 @@ st.markdown(
     "dataset."
 )
 
-model_ref_path = Path(__file__).parent / "data" / "model_reference.pdf"
+DATA_PATH = Path(__file__).parent / "data"
+model_ref_path = DATA_PATH / "model_reference.pdf"
+
+
+@st.dialog("Model scheme and equations", width="large")
+def show_model_reference():
+    # Pre-rendered PNG pages: browsers block data:-URL PDFs in tabs and iframes.
+    for page in sorted(DATA_PATH.glob("model_reference-*.png")):
+        st.image(str(page))
+
+
 if model_ref_path.exists():
     pdf_bytes = model_ref_path.read_bytes()
-    b64 = base64.b64encode(pdf_bytes).decode()
     col_view, col_dl = st.columns([1, 1])
     with col_view:
-        st.markdown(
-            f'<a href="data:application/pdf;base64,{b64}" target="_blank">'
-            "View the model scheme and equations (opens in a new tab)</a>",
-            unsafe_allow_html=True,
-        )
+        if st.button("View the model scheme and equations"):
+            show_model_reference()
     with col_dl:
         st.download_button(
             "Download model scheme and equations (PDF)",
