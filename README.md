@@ -19,7 +19,10 @@ Choices:
    **Model 3** (ψ(t) driven by testing volume).
    Simultaneous → include the **age-stratified extension**?
    - No → **Model 1** or **Model 2**
-   - Yes → show **Bayesian posterior credible bands**, or the point estimate only?
+   - Yes → show the **Bayesian bands** (95% credible interval on the
+     trajectory, nested inside the 95% posterior predictive interval,
+     computed on the effective sample size of the time series), or the
+     point estimate only?
 
 Model 3 is not offered under simultaneous fitting: it does not converge
 there. Bayesian bands are only available for the age-stratified model.
@@ -37,5 +40,5 @@ streamlit run app.py
 - `data.py` — loads the precomputed results for each model variant
 - `data/*.csv` — precomputed trajectories, parameters, and fit quality (SSR, sum of squared log-residuals)
   for every model, generated from the thesis's `D2/` MATLAB pipeline
-  (deterministic fits) and its `bayesian/` mcmcstat/DRAM run (age-model
-  posterior bands)
+  (deterministic fits) and its mcmcstat/DRAM run (pilot + three pooled
+  chains, age-model posterior bands)
