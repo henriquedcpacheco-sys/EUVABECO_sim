@@ -36,7 +36,7 @@ st.markdown(
 **Henrique Pacheco**, CEMAT &nbsp;&nbsp;|&nbsp;&nbsp; **Erida Gjini**, CEMAT*
 
 This simulator walks through the modeling choices conducted and shows the
-actual fitted result for the combination you pick. Use the menu on the left.
+actual fitted result for the combination you pick.
 """
 )
 
