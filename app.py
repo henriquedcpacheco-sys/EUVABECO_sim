@@ -70,8 +70,8 @@ model_choice = sb.radio(
     [
         "Model 1 — constant",
         "Model 2 — piecewise ψ, one value per NPI segment",
-        "Model 3a — age-stratified ψ, with testing-volume coupling",
-        "Model 3b — age-stratified ψ, without testing-volume coupling",
+        "Model 3a — age-stratified ψ, without testing-volume coupling",
+        "Model 3b — age-stratified ψ, with testing-volume coupling",
     ],
     index=None,
     key="model_choice",
@@ -84,8 +84,11 @@ if model_choice == "Model 1 — constant":
     model_key = "sim_m1"
 elif model_choice == "Model 2 — piecewise ψ, one value per NPI segment":
     model_key = "sim_m2"
-elif model_choice == "Model 3a — age-stratified ψ, with testing-volume coupling":
+elif model_choice == "Model 3a — age-stratified ψ, without testing-volume coupling":
     sb.info(AGE_PARAM_NOTES["3a"])
+    model_key = "age_nocorr"
+elif model_choice == "Model 3b — age-stratified ψ, with testing-volume coupling":
+    sb.info(AGE_PARAM_NOTES["3b"])
     sb.subheader("2. Choose the fitting method")
     bayes_choice = sb.radio(
         "Fitting method",
@@ -107,9 +110,6 @@ elif model_choice == "Model 3a — age-stratified ψ, with testing-volume coupli
         model_key = "age_point"
     elif bayes_choice == "95% credible bands (Bayesian MCMC)":
         model_key = "age_bayes"
-elif model_choice == "Model 3b — age-stratified ψ, without testing-volume coupling":
-    sb.info(AGE_PARAM_NOTES["3b"])
-    model_key = "age_nocorr"
 
 sb.markdown("")
 run_clicked = sb.button("Simulate", use_container_width=True)
