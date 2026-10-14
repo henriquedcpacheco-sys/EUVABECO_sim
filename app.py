@@ -238,8 +238,8 @@ if model_key and st.session_state.get("simulated"):
             "from it) are then run and pooled once they agree. The fitting is "
             "done on the effective sample size of the time series: consecutive "
             "days tend to share the same deviation from the model, so the data "
-            "carry fewer independent observations than the raw number of days, "
-            "and the bands reflect that."
+            "carry fewer independent observations than the raw number of days. "
+            
         )
         st.caption(
             "Darker band: 95% credible interval on the model's trajectory "
