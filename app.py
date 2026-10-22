@@ -299,12 +299,20 @@ to build both bands.
 
 **95% posterior predictive interval (lighter band)**
 
-The wider band is the actual posterior predictive interval, the range a new
-observation on that day could plausibly fall in: each trajectory
-$Y_v^{(i)}(t)$ (series $v$, parameter set $i$) is additionally multiplied
-by $\exp(\epsilon_i)$ with $\epsilon_i \sim \mathcal{N}(0, \sigma_i^2)$,
-the same log-scale noise the model is fit with, before the 2.5%/97.5%
-quantiles are taken.
+- It uses the same 500 parameter sets, taken evenly spaced from the
+  pooled chains, as the darker band.
+- Every MCMC iteration saves, next to the parameter set, the noise
+  variance $\sigma^2$ drawn at that same iteration; for parameter set $i$,
+  its own $\sigma_i^2$ is used.
+- Each trajectory $Y_v^{(i)}(t)$ (series $v$, parameter set $i$) is run
+  through the ODE model, as for the darker band, and then multiplied on
+  each day by $\exp(\epsilon_i(t))$, with
+  $\epsilon_i(t) \sim \mathcal{N}(0, \sigma_i^2)$ drawn independently
+  each day: the same log-scale noise the model is fit with.
+- On each day, the band goes from the 2.5% to the 97.5% quantile of
+  those 500 noisy values.
+- It is the actual posterior predictive interval: the range a new
+  observation on that day could plausibly fall in.
 """
             )
 
