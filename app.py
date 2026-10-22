@@ -15,6 +15,7 @@ from data import (
     NPI_EVENTS,
     SERIES_LABELS,
     TESTING_DATA_NOTE,
+    build_comparison_table,
     load_age_bayes,
     load_age_bayes_fit,
     load_age_bayes_draws,
@@ -231,6 +232,40 @@ with col_est:
 # 3. Results for the chosen model
 # ----------------------------------------------------------------------------
 st.header("3. Fitted model")
+
+with st.expander("Compare all models: parameter estimates and fit errors", expanded=False):
+    comp_all = build_comparison_table()
+    st.caption(
+        "Point estimates of every estimated parameter, and the fit error J "
+        "(sum of squared log-residuals) per series, for each model. "
+        "Least-squares estimates for Models 1, 2, 3a and 3b; posterior means "
+        "(and J at those values) for the Bayesian fit. A dash means the "
+        "parameter is not in that model."
+    )
+
+    def _fmt(row_name, v):
+        if pd.isna(v):
+            return "—"
+        if row_name.startswith("J") or row_name.startswith("E"):
+            return f"{v:.1f}"
+        if row_name.startswith("Number"):
+            return f"{v:.0f}"
+        return f"{v:.4f}"
+
+    st.dataframe(
+        pd.DataFrame(
+            {c: [_fmt(r, v) for r, v in comp_all[c].items()] for c in comp_all.columns},
+            index=comp_all.index,
+        ),
+        use_container_width=True,
+        height=35 * (len(comp_all) + 1) + 3,
+    )
+    st.download_button(
+        "Download the comparison table (CSV)",
+        data=comp_all.to_csv(),
+        file_name="all_models_comparison.csv",
+        mime="text/csv",
+    )
 
 if model_choice and model_choice.startswith("Model 3"):
     with st.container(border=True):

@@ -210,3 +210,65 @@ def load_observed() -> pd.DataFrame:
     """Observed daily series (identical in every model file), long format: date, series, obs."""
     traj = pd.read_csv(DATA_DIR / "seq_m1.csv", parse_dates=["date"])
     return traj[["date", "series", "obs"]]
+
+
+# Columns of the all-models comparison table: (column label, model key).
+COMPARISON_MODELS = [
+    ("Model 1", "sim_m1"),
+    ("Model 2", "sim_m2"),
+    ("Model 3a", "age_nocorr"),
+    ("Model 3b (least squares)", "age_point"),
+    ("Model 3b (Bayesian, posterior mean)", "age_bayes"),
+]
+
+_COMPARISON_PARAM_ORDER = (
+    [f"beta{k}" for k in range(1, 6)] + ["psi"] + [f"psi{k}" for k in range(1, 6)]
+    + ["psi_base", "f_test", "theta", "phi_h", "r_c", "e0"]
+)
+
+_J_ROWS = [
+    ("J_cases", "J — cases"),
+    ("J_ward", "J — ward"),
+    ("J_icu", "J — ICU"),
+    ("J_deaths", "J — deaths"),
+    ("J_total", "J — total"),
+]
+
+
+def _canonical(name: str) -> str:
+    n = name.lower()
+    return "beta" + n[1:] if n in {f"b{k}" for k in range(1, 6)} else n
+
+
+@st.cache_data(ttl=600)
+def build_comparison_table() -> pd.DataFrame:
+    """Point estimates of every estimated parameter and the fit errors J,
+    one column per model (NaN where a parameter is not in that model).
+    The Bayesian column uses the posterior means, and J at those values."""
+    summary = load_summary()
+    fit, _ = load_age_bayes_fit()
+    cols = {}
+    for label, key in COMPARISON_MODELS:
+        if key == "age_bayes":
+            pr = pd.read_csv(DATA_DIR / "age_bayes_params.csv")
+            est = dict(zip(pr["name"].map(_canonical), pr["post_mean"]))
+            errs = {
+                j: fit.loc["J_post_mean_params", j.split("_")[1]] for j, _ in _J_ROWS
+            }
+        else:
+            pr = pd.read_csv(DATA_DIR / f"{key}_params.csv")
+            est = dict(zip(pr["name"].map(_canonical), pr["value"]))
+            errs = {j: summary.loc[key, j] for j, _ in _J_ROWS}
+        est.pop("i0", None)  # fixed at 1 in every model, not estimated
+        col = {p: est.get(p) for p in _COMPARISON_PARAM_ORDER}
+        col["n_est"] = float(sum(v is not None for v in col.values()))
+        col.update(errs)
+        cols[label] = col
+    df = pd.DataFrame(cols)
+    labels = {p: param_symbol(p) for p in _COMPARISON_PARAM_ORDER}
+    labels["n_est"] = "Number of estimated parameters"
+    labels.update(dict(_J_ROWS))
+    df.index = [labels[i] for i in df.index]
+    df.index.name = "Parameter / error"
+    return df
+
