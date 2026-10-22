@@ -380,14 +380,7 @@ to build both bands.
             }
         )
         st.dataframe(j_table, hide_index=True, use_container_width=True)
-        st.markdown(
-            f"**Noise variance σ².** The MCMC also samples σ², the variance of "
-            f"the log-residuals (one value shared by the four series). Its "
-            f"posterior mean is **{sig2['post_mean']:.3f}** (95% interval "
-            f"[{sig2['ci_low']:.3f}, {sig2['ci_high']:.3f}]). For a single "
-            f"fitted curve the matching quantity is σ̂² = J / N, with "
-            f"N = {n_obs} observations (4 series × {n_obs // 4} days)."
-        )
+        
         comp_rows = [
             ("Model 1 — constant", "sim_m1"),
             ("Model 2 — piecewise ψ", "sim_m2"),
