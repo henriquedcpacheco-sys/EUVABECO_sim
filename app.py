@@ -16,9 +16,11 @@ from data import (
     SERIES_LABELS,
     TESTING_DATA_NOTE,
     load_age_bayes,
+    load_age_bayes_fit,
     load_deterministic,
     load_observed,
     load_rt,
+    load_summary,
     param_meaning,
     param_symbol,
 )
@@ -254,7 +256,8 @@ if model_key and st.session_state.get("simulated"):
             "Darker band: 95% credible interval on the model's trajectory "
             "(parameter uncertainty only). Lighter band: 95% posterior "
             "predictive interval, where a new day's observation would be "
-            "expected to fall (parameters plus observation noise). Black "
+            "expected to fall (parameters plus observation noise). Red line: "
+            "the model run with the posterior mean of each parameter. Black "
             "squares: observed data."
         )
 
@@ -273,6 +276,10 @@ if model_key and st.session_state.get("simulated"):
                 color=c, alpha=0.35, lw=0, label="95% credible interval",
             )
             ax.scatter(d["date"], d["obs"], s=7, marker="s", color="black", label="Observed")
+            ax.plot(
+                d["date"], d["point_est"], color="red", lw=1.4,
+                label="Model at posterior-mean parameters",
+            )
         else:
             ax.scatter(d["date"], d["obs"], s=6, color="grey", alpha=0.6, label="Observed")
             ax.plot(d["date"], d["sim"], color="steelblue", lw=1.5, label="Fitted model")
@@ -342,7 +349,81 @@ to build both bands.
         )
         st.dataframe(j_table, hide_index=True, use_container_width=True)
 
+    if result.has_bands:
+        fit, sig2 = load_age_bayes_fit()
+        summ = load_summary()
+        n_obs = int(sig2["n_obs"])
+        st.subheader("Fit quality of the posterior")
+        st.markdown(
+            "The residuals are the same log-residuals as in the other models, "
+            "now taken between the data and the **red line** (the model run "
+            "with the posterior mean of each parameter):"
+        )
+        st.latex(
+            r"J = \sum_{s \,\in\, \{\text{cases, ward, ICU, deaths}\}} "
+            r"\sum_{t} \Big(\log(y_s(t)+1) - \log(\hat{y}_s(t)+1)\Big)^2"
+        )
+        st.markdown(
+            "Since every parameter set in the posterior gives its own curve, "
+            "J is also computed for each of the 500 parameter sets used for "
+            "the bands, giving a posterior mean and a 95% interval for J."
+        )
+        cols = ["cases", "ward", "icu", "deaths", "total"]
+        j_table = pd.DataFrame(
+            {
+                "Series": ["Cases", "Ward", "ICU", "Deaths", "Total"],
+                "J at posterior-mean parameters": [round(fit.loc["J_post_mean_params", c], 1) for c in cols],
+                "Posterior mean of J": [round(fit.loc["J_draws_mean", c], 1) for c in cols],
+                "95% interval of J": [
+                    f"[{fit.loc['J_draws_lo', c]:.1f}, {fit.loc['J_draws_hi', c]:.1f}]" for c in cols
+                ],
+            }
+        )
+        st.dataframe(j_table, hide_index=True, use_container_width=True)
+        st.markdown(
+            f"**Noise variance σ².** The MCMC also samples σ², the variance of "
+            f"the log-residuals (one value shared by the four series). Its "
+            f"posterior mean is **{sig2['post_mean']:.3f}** (95% interval "
+            f"[{sig2['ci_low']:.3f}, {sig2['ci_high']:.3f}]). For a single "
+            f"fitted curve the matching quantity is σ̂² = J / N, with "
+            f"N = {n_obs} observations (4 series × {n_obs // 4} days)."
+        )
+        comp_rows = [
+            ("Model 1 — constant", "sim_m1"),
+            ("Model 2 — piecewise ψ", "sim_m2"),
+            ("Model 3a — age-stratified, without coupling", "age_nocorr"),
+            ("Model 3b — age-stratified, with coupling (least squares)", "age_point"),
+        ]
+        comp = [
+            {"Model": lbl, "J (total)": round(summ.loc[k, "J_total"], 1),
+             "σ̂² = J / N": round(summ.loc[k, "J_total"] / n_obs, 3)}
+            for lbl, k in comp_rows
+        ]
+        jpm = fit.loc["J_post_mean_params", "total"]
+        comp.append(
+            {"Model": "Model 3b — Bayesian, at posterior-mean parameters",
+             "J (total)": round(jpm, 1), "σ̂² = J / N": round(jpm / n_obs, 3)}
+        )
+        comp.append(
+            {"Model": "Model 3b — Bayesian, posterior of J and σ² (mean)",
+             "J (total)": round(fit.loc["J_draws_mean", "total"], 1),
+             "σ̂² = J / N": round(sig2["post_mean"], 3)}
+        )
+        st.markdown("**Comparison with the other models** (simultaneous fitting):")
+        st.dataframe(pd.DataFrame(comp), hide_index=True, use_container_width=True)
+        st.caption(
+            "The least-squares fit is, by construction, the parameter set with "
+            "the lowest J, so the posterior-mean curve has a slightly higher J. "
+            "The posterior mean of σ² is a bit above J / N because it averages "
+            "over all plausible parameter sets, not only the best one."
+        )
+
     st.subheader("Weekly residual breakdown")
+    if result.has_bands:
+        st.caption(
+            "Residuals between the data and the red line (model at the "
+            "posterior-mean parameters)."
+        )
     sim_col = "point_est" if result.has_bands else "sim"
     resid = in_window(result.trajectories[["date", "series", "obs", sim_col]]).copy()
     resid["sq_log_resid"] = (
@@ -406,8 +487,10 @@ to build both bands.
 
     zip_buf = io.BytesIO()
     with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        if result.summary is not None:
+        if result.summary is not None or result.has_bands:
             zf.writestr("objective_function_J.csv", j_table.to_csv(index=False))
+        if result.has_bands:
+            zf.writestr("model_comparison_J_sigma2.csv", pd.DataFrame(comp).to_csv(index=False))
         zf.writestr("weekly_residual_breakdown.csv", weekly.to_csv())
         params_csv = params.rename(columns=param_labels)
         zf.writestr("estimated_parameters.csv", params_csv.to_csv(index=False))
