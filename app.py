@@ -291,8 +291,8 @@ with col_est:
 # ----------------------------------------------------------------------------
 st.header("3. Fitted model")
 
-# One download, filled in at the end of the script (once the chosen model's
-# plots exist): the all-models comparison table, plus the chosen model's results.
+# One download, shown only after a run and filled in at the end of the script
+# (once the chosen model's plots exist): its results + the all-models comparison.
 comp_all = build_comparison_table()
 download_slot = st.container()
 
@@ -590,24 +590,14 @@ to build both bands.
             f.savefig(buf, format="png", dpi=200, bbox_inches="tight")
             zf.writestr(name, buf.getvalue())
     download_slot.download_button(
-        "Download all results: all-models comparison table + this model's "
-        "plots, J and parameters (ZIP)",
+        "Download the results of this model and the comparison with all models (ZIP)",
         data=zip_buf.getvalue(),
         file_name=f"{model_key}_results.zip",
         mime="application/zip",
         type="primary",
         use_container_width=True,
     )
+elif model_key:
+    st.info("Press **Run Model Fitting** in the menu on the left to see the fitted result.")
 else:
-    download_slot.download_button(
-        "Download the all-models comparison table: parameter estimates and J (CSV)",
-        data=comp_all.to_csv(),
-        file_name="all_models_comparison.csv",
-        mime="text/csv",
-        type="primary",
-        use_container_width=True,
-    )
-    if model_key:
-        st.info("Press **Run Model Fitting** in the menu on the left to see the fitted result.")
-    else:
-        st.info("Pick a model in the menu on the left to see the fitted result.")
+    st.info("Pick a model in the menu on the left to see the fitted result.")
