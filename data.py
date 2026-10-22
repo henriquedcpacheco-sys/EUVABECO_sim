@@ -52,6 +52,37 @@ AGE_PARAM_NOTES = {
     ),
 }
 
+# Sidebar subsection shown for both age-stratified variants (3a and 3b).
+AGE_STRUCTURE_NOTE = """
+**New data**
+- Confirmed cases by age band and sex (DSSG Portugal), summed into four
+  groups: 0-49, 50-59, 60-69 and 70+.
+- These are cumulative counts, so they are differenced to daily new
+  cases per group; each group's share of the day's labelled cases gives
+  the **daily age composition** P_a(t).
+- On days with no new age-labelled cases, the previous day's composition
+  is kept. Unlabelled cases are assumed to share the composition of the
+  labelled ones.
+
+**New model structure**
+- The compartments and equations are unchanged: age enters only through
+  the hospitalisation probability, not through separate compartments.
+- Each age group has its own hospitalisation probability, doubling from
+  one group to the next (ψ_base, 2ψ_base, 4ψ_base, 8ψ_base), roughly
+  matching the age-specific hospitalisation ratios in Caetano et al.
+- Each day, ψ(t) is the average of the four group values weighted by
+  that day's age composition, so ψ rises when older people make up more
+  of the cases.
+- The single ψ of Models 1/2 is replaced by one estimated parameter,
+  ψ_base.
+"""
+
+TESTING_DATA_NOTE = (
+    "**Model 3b only:** it also uses the daily testing volume (Our World "
+    "in Data), whose 7-day rolling sum drives the coupling Ch(t) that "
+    "scales ψ(t) down as testing grows."
+)
+
 
 @dataclass
 class FitResult:
