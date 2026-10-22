@@ -233,39 +233,10 @@ with col_est:
 # ----------------------------------------------------------------------------
 st.header("3. Fitted model")
 
-with st.expander("Compare all models: parameter estimates and fit errors", expanded=False):
-    comp_all = build_comparison_table()
-    st.caption(
-        "Point estimates of every estimated parameter, and the fit error J "
-        "(sum of squared log-residuals) per series, for each model. "
-        "Least-squares estimates for Models 1, 2, 3a and 3b; posterior means "
-        "(and J at those values) for the Bayesian fit. A dash means the "
-        "parameter is not in that model."
-    )
-
-    def _fmt(row_name, v):
-        if pd.isna(v):
-            return "—"
-        if row_name.startswith("J") or row_name.startswith("E"):
-            return f"{v:.1f}"
-        if row_name.startswith("Number"):
-            return f"{v:.0f}"
-        return f"{v:.4f}"
-
-    st.dataframe(
-        pd.DataFrame(
-            {c: [_fmt(r, v) for r, v in comp_all[c].items()] for c in comp_all.columns},
-            index=comp_all.index,
-        ),
-        use_container_width=True,
-        height=35 * (len(comp_all) + 1) + 3,
-    )
-    st.download_button(
-        "Download the comparison table (CSV)",
-        data=comp_all.to_csv(),
-        file_name="all_models_comparison.csv",
-        mime="text/csv",
-    )
+# One download, filled in at the end of the script (once the chosen model's
+# plots exist): the all-models comparison table, plus the chosen model's results.
+comp_all = build_comparison_table()
+download_slot = st.container()
 
 if model_choice and model_choice.startswith("Model 3"):
     with st.container(border=True):
@@ -544,6 +515,7 @@ to build both bands.
 
     zip_buf = io.BytesIO()
     with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("all_models_comparison.csv", comp_all.to_csv())
         if result.summary is not None or result.has_bands:
             zf.writestr("objective_function_J.csv", j_table.to_csv(index=False))
         if result.has_bands:
@@ -559,13 +531,21 @@ to build both bands.
             buf = io.BytesIO()
             f.savefig(buf, format="png", dpi=200, bbox_inches="tight")
             zf.writestr(name, buf.getvalue())
-    st.download_button(
-        "Download all results (plots + J + parameters)",
+    download_slot.download_button(
+        "Download all results: all-models comparison table + this model's "
+        "plots, J and parameters (ZIP)",
         data=zip_buf.getvalue(),
         file_name=f"{model_key}_results.zip",
         mime="application/zip",
     )
-elif model_key:
-    st.info("Press **Run Model Fitting** in the menu on the left to see the fitted result.")
 else:
-    st.info("Pick a model in the menu on the left to see the fitted result.")
+    download_slot.download_button(
+        "Download the all-models comparison table: parameter estimates and J (CSV)",
+        data=comp_all.to_csv(),
+        file_name="all_models_comparison.csv",
+        mime="text/csv",
+    )
+    if model_key:
+        st.info("Press **Run Model Fitting** in the menu on the left to see the fitted result.")
+    else:
+        st.info("Pick a model in the menu on the left to see the fitted result.")
