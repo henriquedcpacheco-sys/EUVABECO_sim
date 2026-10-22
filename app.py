@@ -350,9 +350,8 @@ to build both bands.
         st.dataframe(j_table, hide_index=True, use_container_width=True)
 
     if result.has_bands:
-        fit, sig2 = load_age_bayes_fit()
+        fit, _ = load_age_bayes_fit()
         summ = load_summary()
-        n_obs = int(sig2["n_obs"])
         st.subheader("Fit quality of the posterior")
         st.markdown(
             "The residuals are the same log-residuals as in the other models, "
@@ -388,27 +387,25 @@ to build both bands.
             ("Model 3b — age-stratified, with coupling (least squares)", "age_point"),
         ]
         comp = [
-            {"Model": lbl, "J (total)": round(summ.loc[k, "J_total"], 1),
-             "σ̂² = J / N": round(summ.loc[k, "J_total"] / n_obs, 3)}
+            {"Model": lbl, "J (total)": round(summ.loc[k, "J_total"], 1)}
             for lbl, k in comp_rows
         ]
         jpm = fit.loc["J_post_mean_params", "total"]
         comp.append(
             {"Model": "Model 3b — Bayesian, at posterior-mean parameters",
-             "J (total)": round(jpm, 1), "σ̂² = J / N": round(jpm / n_obs, 3)}
+             "J (total)": round(jpm, 1)}
         )
         comp.append(
-            {"Model": "Model 3b — Bayesian, posterior of J and σ² (mean)",
-             "J (total)": round(fit.loc["J_draws_mean", "total"], 1),
-             "σ̂² = J / N": round(sig2["post_mean"], 3)}
+            {"Model": "Model 3b — Bayesian, posterior mean of J",
+             "J (total)": round(fit.loc["J_draws_mean", "total"], 1)}
         )
         st.markdown("**Comparison with the other models** (simultaneous fitting):")
         st.dataframe(pd.DataFrame(comp), hide_index=True, use_container_width=True)
         st.caption(
             "The least-squares fit is, by construction, the parameter set with "
-            "the lowest J, so the posterior-mean curve has a slightly higher J. "
-            "The posterior mean of σ² is a bit above J / N because it averages "
-            "over all plausible parameter sets, not only the best one."
+            "the lowest J, so the posterior-mean curve has a slightly higher J, "
+            "and the posterior mean of J, which averages over all plausible "
+            "parameter sets, is higher still."
         )
 
     st.subheader("Weekly residual breakdown")
