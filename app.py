@@ -459,13 +459,9 @@ to build both bands.
         )
         if result.has_bands:
             st.caption(
-                "Least-squares estimate: the best-fit parameters of this same "
-                "model (Model 3b), found beforehand by least squares; it is not "
-                "estimated by the MCMC. It is the starting point of the centred "
-                "chain, while the other two chains start 3 posterior standard "
-                "deviations below and above it (from the pilot run), within "
-                "the parameter bounds. Posterior mean and 95% CI: estimated "
-                "from the pooled MCMC draws of all three chains."
+                "Least-squares estimate: the Model 3b least-squares fit, used as "
+                "the starting point of the centred chain (not estimated by the "
+                "MCMC). Posterior mean and 95% CI: from the pooled MCMC draws."
             )
 
     st.subheader("Effective reproduction number")
