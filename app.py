@@ -450,13 +450,23 @@ to build both bands.
         param_labels = {
             "name": "Parameter",
             "value": "Estimate",
-            "point_est": "Point estimate",
+            "point_est": "Least-squares estimate (start of the centred chain)",
             "post_mean": "Posterior mean",
         }
         st.dataframe(
             params.rename(columns=param_labels),
             hide_index=True, use_container_width=True,
         )
+        if result.has_bands:
+            st.caption(
+                "Least-squares estimate: the best-fit parameters of this same "
+                "model (Model 3b), found beforehand by least squares; it is not "
+                "estimated by the MCMC. It is the starting point of the centred "
+                "chain, while the other two chains start 3 posterior standard "
+                "deviations below and above it (from the pilot run), within "
+                "the parameter bounds. Posterior mean and 95% CI: estimated "
+                "from the pooled MCMC draws of all three chains."
+            )
 
     st.subheader("Effective reproduction number")
     st.caption("Rₜ > 1: the epidemic grows. Rₜ < 1: the epidemic shrinks.")
