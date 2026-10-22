@@ -40,9 +40,29 @@ st.title("COVID-19 Model Simulator — Portugal")
 st.markdown(
     """
 **Henrique Pacheco**, CEMAT &nbsp;&nbsp;|&nbsp;&nbsp; **Erida Gjini**, CEMAT*
+"""
+)
+st.header("Welcome to the Online COVID-19 Simulator")
+st.markdown(
+    """
+We provide a tool in which it is possible to explore how COVID-19 spreads in
+a particular setting, and how different factors influence the course of an
+outbreak, through our interactive online simulator. We have adjusted the
+model to epidemiological data from Portugal
+([DSSG Portugal](https://github.com/dssg-pt/covid19pt-data);
+[Our World in Data](https://github.com/owid/covid-19-data)), especially the
+early phase of the SARS-CoV-2 pandemic. We allow several model versions,
+based on [Dings et al. (2022)](https://doi.org/10.3390/v14102114), of
+increasing complexity to be employed, where several parameters such as
+transmission rates, hospitalisation probabilities and others are estimated
+to adjust model predictions to the observed time series.
 
-This simulator walks through the modeling choices conducted and shows the
-actual fitted result for the combination you pick.
+In addition to model calibration based on early dynamics, it is possible to
+investigate hypothetical counterfactual scenarios and observe the impact of
+different parameters on infection patterns over time. We also implement
+models with vaccination for later stages of the pandemic. Although we only
+model aggregated nation-level data for Portugal, the platform can be flexibly
+extended to model specific regional data of the same type and resolution.
 """
 )
 
@@ -55,19 +75,57 @@ d_min, d_max = obs_all["date"].min().date(), obs_all["date"].max().date()
 sb = st.sidebar
 sb.header("Menu")
 
-sb.subheader("Period")
-period = sb.slider(
-    "Period to display",
-    min_value=d_min,
-    max_value=d_max,
-    value=(d_min, d_max),
-    format="DD/MM/YYYY",
+MODES = [
+    "1. Estimate early dynamics",
+    "2. Estimate partial early dynamics",
+    "3. Simulate scenarios",
+    "4. Model with vaccination",
+]
+sb.subheader("Simulator mode")
+mode = sb.radio(
+    "Simulator mode",
+    MODES,
+    key="mode",
     label_visibility="collapsed",
-    help=(
-        "All models were fitted on the whole of 2020. This selects the window "
-        "shown in every plot below."
-    ),
+    captions=[
+        "Whole of 2020, fixed time period",
+        "Choose the time period",
+        "Not available yet",
+        "Not available yet",
+    ],
 )
+
+if mode == MODES[2]:
+    st.info(
+        "**Simulate scenarios** is not available yet. It will allow exploring "
+        "hypothetical counterfactual scenarios and the impact of different "
+        "parameters on infection patterns over time."
+    )
+    st.stop()
+if mode == MODES[3]:
+    st.info(
+        "**Model with vaccination** is not available yet. It will extend one "
+        "of the calibrated models (most likely Model 3b) with vaccination, "
+        "for later stages of the pandemic."
+    )
+    st.stop()
+
+if mode == MODES[0]:
+    period = (d_min, d_max)
+else:
+    sb.subheader("Period")
+    period = sb.slider(
+        "Period to display",
+        min_value=d_min,
+        max_value=d_max,
+        value=(d_min, d_max),
+        format="DD/MM/YYYY",
+        label_visibility="collapsed",
+        help=(
+            "All models were fitted on the whole of 2020. This selects the window "
+            "shown in every plot below."
+        ),
+    )
 start, end = pd.Timestamp(period[0]), pd.Timestamp(period[1])
 
 sb.subheader("1. Pick a model, based on how the hospitalisation probability is constructed")
