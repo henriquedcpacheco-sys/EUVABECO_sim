@@ -6,6 +6,15 @@ shows the actual fitted result for a specific, already-estimated model —
 this is not a slider playground, it does no fitting or ODE integration at
 runtime.
 
+## Simulator modes (top of the left sidebar)
+
+Only one mode is active at a time:
+
+1. **Estimate early dynamics**: the fitted models on the whole of 2020 (fixed time period).
+2. **Estimate partial early dynamics**: the same, with a selectable time period.
+3. **Simulate scenarios**: not available yet.
+4. **Model with vaccination**: not available yet (planned to build on Model 3b).
+
 ## Menu (left sidebar)
 
 The page first shows the observed data with the fixed NPI dates, then the meaning of the
