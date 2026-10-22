@@ -287,7 +287,7 @@ if model_key and st.session_state.get("simulated"):
         with st.container(border=True):
             st.subheader("Obtaining the two bands")
             st.markdown(
-                """
+                r"""
 500 parameter sets were taken from the chain, spread evenly over the pooled chains, and are used
 to build both bands.
 
@@ -297,13 +297,14 @@ to build both bands.
 - On each day, the band goes from the 2.5% to the 97.5% quantile of those
   500 values, so it holds the middle 95% of the trajectories.
 
-**95% posterior predictive interval (lighter band): where the data
-should fall.**
-- Starts from the same 500 trajectories, but adds to each one the
-  day-to-day observation noise the model assumes: every day's value is
-  multiplied by a random factor drawn with the noise level estimated
-  alongside that parameter set.
-- On each day, the band again goes from the 2.5% to the 97.5% quantile.
+**95% posterior predictive interval (lighter band)**
+
+The wider band is the actual posterior predictive interval, the range a new
+observation on that day could plausibly fall in: each trajectory
+$Y_v^{(i)}(t)$ (series $v$, parameter set $i$) is additionally multiplied
+by $\exp(\epsilon_i)$ with $\epsilon_i \sim \mathcal{N}(0, \sigma_i^2)$,
+the same log-scale noise the model is fit with, before the 2.5%/97.5%
+quantiles are taken.
 """
             )
 
