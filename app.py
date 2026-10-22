@@ -285,12 +285,10 @@ if model_key and st.session_state.get("simulated"):
 
     if result.has_bands:
         with st.container(border=True):
-            st.subheader("What the two bands mean and how they are obtained")
+            st.subheader("Obtaining the two bands")
             st.markdown(
                 """
-The MCMC run gives a large set of plausible parameter sets (the
-**posterior**), together with a plausible value of the observation noise
-for each one. 500 of them, spread evenly over the pooled chains, are used
+500 parameter sets were taken from the chain, spread evenly over the pooled chains, and are used
 to build both bands.
 
 **95% credible interval (darker band): uncertainty in the model curve.**
@@ -298,36 +296,14 @@ to build both bands.
   model trajectories per series.
 - On each day, the band goes from the 2.5% to the 97.5% quantile of those
   500 values, so it holds the middle 95% of the trajectories.
-- It answers: *given the data, where is the true model curve?* It only
-  reflects that the parameters are not known exactly. Real data scatter
-  around the curve from day to day, so many observed points fall outside
-  this band, and that is expected.
 
 **95% posterior predictive interval (lighter band): where the data
 should fall.**
 - Starts from the same 500 trajectories, but adds to each one the
   day-to-day observation noise the model assumes: every day's value is
   multiplied by a random factor drawn with the noise level estimated
-  alongside that parameter set (the fit is on the log scale, so the noise
-  is proportional to the size of the series).
+  alongside that parameter set.
 - On each day, the band again goes from the 2.5% to the 97.5% quantile.
-- It answers: *given the data, where would a new observation on that day
-  fall?* Because it includes both the parameter uncertainty and the
-  noise, it is wider and contains the darker band, and about 95% of the
-  observed points should lie inside it.
-
-**Check against the data** (share of observed days inside each band):
-
-| Series | Credible interval | Posterior predictive |
-|---|---|---|
-| Daily cases | 64% | 95% |
-| Ward occupancy | 61% | 99% |
-| ICU occupancy | 52% | 88% |
-| Daily deaths | 54% | 89% |
-
-The predictive band captures 88-99% of the observations, near the 95%
-it aims for (a little short for ICU and deaths); the credible band captures far fewer, since it describes the
-model curve, not the scatter of the data around it.
 """
             )
 
