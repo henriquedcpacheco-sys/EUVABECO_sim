@@ -17,6 +17,7 @@ from data import (
     TESTING_DATA_NOTE,
     load_age_bayes,
     load_age_bayes_fit,
+    load_age_bayes_draws,
     load_deterministic,
     load_observed,
     load_rt,
@@ -464,6 +465,31 @@ to build both bands.
                 "MCMC). Posterior mean and 95% CI: from the pooled MCMC draws."
             )
 
+    fig_hist = None
+    if result.has_bands:
+        st.subheader("Posterior distributions of the parameters")
+        st.caption(
+            "Histograms of 5000 posterior draws, evenly spaced over the pooled "
+            "chains. Red line: posterior mean. Dashed black line: least-squares "
+            "estimate. Shaded: 95% CI."
+        )
+        draws = load_age_bayes_draws()
+        pinfo = result.params.set_index("name")
+        fig_hist, axes_h = plt.subplots(3, 4, figsize=(11, 7.2))
+        for ax, name in zip(axes_h.flat, draws.columns):
+            ax.hist(draws[name], bins=40, color="0.6", edgecolor="white", lw=0.3)
+            r = pinfo.loc[name]
+            ax.axvspan(r["ci_low"], r["ci_high"], color="red", alpha=0.08, lw=0)
+            ax.axvline(r["post_mean"], color="red", lw=1.6)
+            ax.axvline(r["point_est"], color="black", lw=1.2, ls="--")
+            ax.set_title(param_symbol(name))
+            ax.set_yticks([])
+            ax.tick_params(axis="x", labelsize=8)
+        for ax in list(axes_h.flat)[len(draws.columns):]:
+            ax.axis("off")
+        fig_hist.tight_layout()
+        st.pyplot(fig_hist)
+
     st.subheader("Effective reproduction number")
     st.caption("Rₜ > 1: the epidemic grows. Rₜ < 1: the epidemic shrinks.")
     rt = in_window(load_rt(model_key))
@@ -494,7 +520,7 @@ to build both bands.
             ("fitted_model.png", fig),
             ("weekly_residual_breakdown.png", fig_resid),
             ("effective_reproduction_number.png", fig_rt),
-        ]:
+        ] + ([("posterior_histograms.png", fig_hist)] if fig_hist is not None else []):
             buf = io.BytesIO()
             f.savefig(buf, format="png", dpi=200, bbox_inches="tight")
             zf.writestr(name, buf.getvalue())
