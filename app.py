@@ -537,6 +537,8 @@ to build both bands.
         data=zip_buf.getvalue(),
         file_name=f"{model_key}_results.zip",
         mime="application/zip",
+        type="primary",
+        use_container_width=True,
     )
 else:
     download_slot.download_button(
@@ -544,6 +546,8 @@ else:
         data=comp_all.to_csv(),
         file_name="all_models_comparison.csv",
         mime="text/csv",
+        type="primary",
+        use_container_width=True,
     )
     if model_key:
         st.info("Press **Run Model Fitting** in the menu on the left to see the fitted result.")
