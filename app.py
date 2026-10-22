@@ -9,10 +9,12 @@ import streamlit as st
 
 from data import (
     AGE_PARAM_NOTES,
+    AGE_STRUCTURE_NOTE,
     ESTIMATED_PARAMS,
     FIXED_PARAMS,
     NPI_EVENTS,
     SERIES_LABELS,
+    TESTING_DATA_NOTE,
     load_age_bayes,
     load_deterministic,
     load_observed,
@@ -86,9 +88,14 @@ elif model_choice == "Model 2 — piecewise ψ, one value per NPI segment":
     model_key = "sim_m2"
 elif model_choice == "Model 3a — age-stratified ψ, without testing-volume coupling":
     sb.info(AGE_PARAM_NOTES["3a"])
+    sb.subheader("Age structure: new data and model structure")
+    sb.markdown(AGE_STRUCTURE_NOTE)
     model_key = "age_nocorr"
 elif model_choice == "Model 3b — age-stratified ψ, with testing-volume coupling":
     sb.info(AGE_PARAM_NOTES["3b"])
+    sb.subheader("Age structure: new data and model structure")
+    sb.markdown(AGE_STRUCTURE_NOTE)
+    sb.markdown(TESTING_DATA_NOTE)
     sb.subheader("2. Choose the fitting method")
     bayes_choice = sb.radio(
         "Fitting method",
