@@ -102,6 +102,20 @@ def load_age_bayes() -> FitResult:
 
 
 @st.cache_data(ttl=600)
+def load_age_bayes_fit() -> tuple[pd.DataFrame, pd.Series]:
+    """Posterior fit quality: J per series (at the posterior-mean parameters and
+    over the 500 band draws) and the posterior of the noise variance sigma^2."""
+    fit = pd.read_csv(DATA_DIR / "age_bayes_fit.csv").set_index("quantity")
+    sigma2 = pd.read_csv(DATA_DIR / "age_bayes_sigma2.csv").iloc[0]
+    return fit, sigma2
+
+
+@st.cache_data(ttl=600)
+def load_summary() -> pd.DataFrame:
+    return pd.read_csv(DATA_DIR / "summary.csv").set_index("model")
+
+
+@st.cache_data(ttl=600)
 def load_rt(key: str) -> pd.DataFrame:
     """R_t = beta(t) * (1/gamma_C + 1/gamma_I) * S(t)/N for the given model."""
     rt = pd.read_csv(DATA_DIR / "rt.csv", parse_dates=["date"])
