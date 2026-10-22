@@ -111,6 +111,12 @@ def load_age_bayes_fit() -> tuple[pd.DataFrame, pd.Series]:
 
 
 @st.cache_data(ttl=600)
+def load_age_bayes_draws() -> pd.DataFrame:
+    """5000 posterior draws, evenly spaced over the pooled chains (one column per parameter)."""
+    return pd.read_csv(DATA_DIR / "age_bayes_draws.csv")
+
+
+@st.cache_data(ttl=600)
 def load_summary() -> pd.DataFrame:
     return pd.read_csv(DATA_DIR / "summary.csv").set_index("model")
 
