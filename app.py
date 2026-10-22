@@ -88,14 +88,9 @@ elif model_choice == "Model 2 — piecewise ψ, one value per NPI segment":
     model_key = "sim_m2"
 elif model_choice == "Model 3a — age-stratified ψ, without testing-volume coupling":
     sb.info(AGE_PARAM_NOTES["3a"])
-    sb.subheader("Age structure: new data and model structure")
-    sb.markdown(AGE_STRUCTURE_NOTE)
     model_key = "age_nocorr"
 elif model_choice == "Model 3b — age-stratified ψ, with testing-volume coupling":
     sb.info(AGE_PARAM_NOTES["3b"])
-    sb.subheader("Age structure: new data and model structure")
-    sb.markdown(AGE_STRUCTURE_NOTE)
-    sb.markdown(TESTING_DATA_NOTE)
     sb.subheader("2. Choose the fitting method")
     bayes_choice = sb.radio(
         "Fitting method",
@@ -233,6 +228,13 @@ with col_est:
 # 3. Results for the chosen model
 # ----------------------------------------------------------------------------
 st.header("3. Fitted model")
+
+if model_choice and model_choice.startswith("Model 3"):
+    with st.container(border=True):
+        st.subheader("Age structure: new data and model structure")
+        st.markdown(AGE_STRUCTURE_NOTE)
+        if model_choice.startswith("Model 3b"):
+            st.markdown(TESTING_DATA_NOTE)
 
 if model_key and st.session_state.get("simulated"):
     result = load_age_bayes() if model_key == "age_bayes" else load_deterministic(model_key)

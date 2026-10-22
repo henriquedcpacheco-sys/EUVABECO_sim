@@ -52,7 +52,7 @@ AGE_PARAM_NOTES = {
     ),
 }
 
-# Sidebar subsection shown for both age-stratified variants (3a and 3b).
+# Main-page box shown for both age-stratified variants (3a and 3b).
 AGE_STRUCTURE_NOTE = """
 **New data**
 - Confirmed cases by age band and sex (DSSG Portugal), summed into four
