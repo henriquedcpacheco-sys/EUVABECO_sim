@@ -112,7 +112,7 @@ elif model_choice == "Model 3b — age-stratified ψ, with testing-volume coupli
         model_key = "age_bayes"
 
 sb.markdown("")
-run_clicked = sb.button("Simulate", use_container_width=True)
+run_clicked = sb.button("Run Model Fitting", use_container_width=True)
 
 if "last_model_key" not in st.session_state:
     st.session_state.last_model_key = None
@@ -384,6 +384,6 @@ if model_key and st.session_state.get("simulated"):
         mime="application/zip",
     )
 elif model_key:
-    st.info("Press **Simulate** in the menu on the left to see the fitted result.")
+    st.info("Press **Run Model Fitting** in the menu on the left to see the fitted result.")
 else:
     st.info("Pick a model in the menu on the left to see the fitted result.")
