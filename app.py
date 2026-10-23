@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
+from scenarios import render_scenarios
 from data import (
     AGE_PARAM_NOTES,
     AGE_STRUCTURE_NOTE,
@@ -90,17 +91,13 @@ mode = sb.radio(
     captions=[
         "Whole of 2020, fixed time period",
         "Choose the time period",
-        "Not available yet",
+        "Lockdown timing: 2 weeks earlier or later",
         "Not available yet",
     ],
 )
 
 if mode == MODES[2]:
-    st.info(
-        "**Simulate scenarios** is not available yet. It will allow exploring "
-        "hypothetical counterfactual scenarios and the impact of different "
-        "parameters on infection patterns over time."
-    )
+    render_scenarios(sb)
     st.stop()
 if mode == MODES[3]:
     st.info(
@@ -307,7 +304,7 @@ if model_key and st.session_state.get("simulated"):
     result = load_age_bayes() if model_key == "age_bayes" else load_deterministic(model_key)
     st.subheader(result.label)
     tab_res, tab_met, tab_ov = st.tabs(
-        ["📈 Results: plots and errors", "🔢 Metrics", "🔀 Overlay"]
+        ["📈 Plots and error metrics", "🔢 Epidemic metrics", "🔀 Overlay"]
     )
 
     with tab_res:
