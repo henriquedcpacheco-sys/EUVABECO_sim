@@ -583,7 +583,6 @@ if model_key and st.session_state.get("simulated"):
             f"(**{traj['date'].min():%d/%m/%Y} – {traj['date'].max():%d/%m/%Y}**)"
             + (", using the model at the posterior-mean parameters (red line)."
                if result.has_bands else ".")
-            + " Observed values are given for comparison."
         )
         peak_label = {
             "cases": "Daily confirmed cases",
@@ -594,13 +593,11 @@ if model_key and st.session_state.get("simulated"):
         peak_rows = []
         for series in SERIES:
             d = traj[traj["series"] == series]
-            ks, ko = d[sim_col].idxmax(), d["obs"].idxmax()
+            ks = d[sim_col].idxmax()
             peak_rows.append({
                 "Series": peak_label[series],
                 "Simulated peak day": f"{d.loc[ks, 'date']:%d/%m/%Y}",
                 "Simulated peak value": round(d.loc[ks, sim_col]),
-                "Observed peak day": f"{d.loc[ko, 'date']:%d/%m/%Y}",
-                "Observed peak value": round(d.loc[ko, "obs"]),
             })
         peaks = pd.DataFrame(peak_rows)
 
@@ -613,20 +610,16 @@ if model_key and st.session_state.get("simulated"):
         c1.metric("Days simulated", f"{n_days}")
         c2.metric(
             "Total confirmed cases (simulated)", f"{cases[sim_col].sum():,.0f}",
-            help=f"Observed: {cases['obs'].sum():,.0f}",
         )
         c3.metric(
             "Total deaths (simulated)", f"{deaths[sim_col].sum():,.0f}",
-            help=f"Observed: {deaths['obs'].sum():,.0f}",
         )
         c4.metric(
             "Highest Rₜ", f"{rt_w.loc[k_rt, 'Rt']:.2f}",
             help=f"Reached on {rt_w.loc[k_rt, 'date']:%d/%m/%Y}",
         )
         st.caption(
-            f"Observed over the same period: {cases['obs'].sum():,.0f} confirmed "
-            f"cases and {deaths['obs'].sum():,.0f} deaths. Highest Rₜ reached on "
-            f"{rt_w.loc[k_rt, 'date']:%d/%m/%Y}."
+            f"Highest Rₜ reached on {rt_w.loc[k_rt, 'date']:%d/%m/%Y}."
         )
 
         st.markdown("**Peak of each series**")
@@ -637,17 +630,15 @@ if model_key and st.session_state.get("simulated"):
         )
         metrics_table = pd.concat([
             pd.DataFrame([
-                {"Metric": "Days simulated", "Simulated": n_days, "Observed": n_days},
-                {"Metric": "Total confirmed cases", "Simulated": round(cases[sim_col].sum()),
-                 "Observed": round(cases["obs"].sum())},
-                {"Metric": "Total deaths", "Simulated": round(deaths[sim_col].sum()),
-                 "Observed": round(deaths["obs"].sum())},
+                {"Metric": "Days simulated", "Simulated": n_days},
+                {"Metric": "Total confirmed cases", "Simulated": round(cases[sim_col].sum())},
+                {"Metric": "Total deaths", "Simulated": round(deaths[sim_col].sum())},
                 {"Metric": f"Highest Rt ({rt_w.loc[k_rt, 'date']:%d/%m/%Y})",
-                 "Simulated": round(rt_w.loc[k_rt, "Rt"], 3), "Observed": None},
+                 "Simulated": round(rt_w.loc[k_rt, "Rt"], 3)},
             ]),
             pd.DataFrame([
-                {"Metric": f"Peak {r['Series']} ({r['Simulated peak day']} sim. / {r['Observed peak day']} obs.)",
-                 "Simulated": r["Simulated peak value"], "Observed": r["Observed peak value"]}
+                {"Metric": f"Peak {r['Series']} ({r['Simulated peak day']})",
+                 "Simulated": r["Simulated peak value"]}
                 for r in peak_rows
             ]),
         ], ignore_index=True)
