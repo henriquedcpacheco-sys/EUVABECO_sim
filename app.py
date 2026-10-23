@@ -682,11 +682,11 @@ if model_key and st.session_state.get("simulated"):
 
         fig_ov, ax_l = plt.subplots(figsize=(10, 4.2))
         ax_r = ax_l.twinx()
-        for ax, name, ls in [(ax_l, left, "-"), (ax_r, right, "--")]:
+        for ax, name in [(ax_l, left), (ax_r, right)]:
             x, y = ov_data(name)
             color = OV_SERIES[name][1]
-            ax.plot(x, y, color=color, lw=2, ls=ls, label=name)
-            ax.set_ylabel(name, color=color)
+            ax.plot(x, y, color=color, lw=2, label=name)
+            ax.set_ylabel(name, color=color, fontweight="bold")
             ax.tick_params(axis="y", colors=color)
         if "Rₜ" in (left, right):
             (ax_l if left == "Rₜ" else ax_r).axhline(1, color="0.4", lw=1, ls=":")
