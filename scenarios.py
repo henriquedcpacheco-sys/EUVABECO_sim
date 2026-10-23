@@ -145,9 +145,8 @@ def render_scenarios(sb):
                 ":material/arrow_back:",
                 "Set up a scenario in the sidebar",
                 "Choose a model and, for an extra lockdown, its start date, duration and "
-                "Rₜ reduction. Then press **Run scenario simulation**. The result is drawn "
-                "against the fitted baseline, so you can see what the extra reduction "
-                "changes.",
+                "Rₜ reduction. Then press **Run scenario simulation**. Save the results and open "
+                "**Compare** to set them against the baseline.",
             )
         else:
             _render_results(cfg, config, saved)
@@ -235,27 +234,19 @@ def _render_results(cfg, current, saved):
     if view == "Plots":
         legend = [("line", charts.INK, "Scenario" if scn else "Simulated (fitted baseline)")]
         if scn:
-            legend += [("dash", charts.OBS_COLOR, "Baseline (fitted transmission)"),
-                       ("window", charts.WINDOW_COLOR, "Window with the extra Rₜ reduction")]
+            legend.append(("window", charts.WINDOW_COLOR, "Window with the extra Rₜ reduction"))
         legend.append(("rule", charts.RULE_COLOR, "Fitted changepoint"))
         st.markdown(charts.legend_html(legend), unsafe_allow_html=True)
-        both = df.copy()
-        if base is not None:
-            for s in SCN_SERIES:
-                both[f"{s}_base"] = base[s].to_numpy()
         panels = [
-            charts.scenario_panel(
-                both, s, SCN_SERIES[s], CHANGEPOINTS, start, end, window,
-                value_col=s, baseline_col=f"{s}_base" if base is not None else None)
+            charts.scenario_panel(df, s, SCN_SERIES[s], CHANGEPOINTS, start, end, window,
+                                  value_col=s)
             for s in ["cases", "ward", "icu", "deaths"]
         ]
         panel_grid(panels)
         st.markdown("##### Effective reproduction number Rₜ")
         st.altair_chart(
-            charts.scenario_panel(both, "Rt", None, CHANGEPOINTS, start, end, window,
-                                  value_col="Rt",
-                                  baseline_col="Rt_base" if base is not None else None,
-                                  fmt=".3f", unit="Rₜ").properties(height=250),
+            charts.scenario_panel(df, "Rt", None, CHANGEPOINTS, start, end, window,
+                                  value_col="Rt", fmt=".3f", unit="Rₜ").properties(height=250),
             width="stretch",
         )
 
