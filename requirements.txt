@@ -1,4 +1,6 @@
-streamlit
+streamlit>=1.66
 pandas
-matplotlib
+numpy
 scipy
+altair>=6
+vl-convert-python>=1.7

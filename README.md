@@ -21,11 +21,19 @@ Only one mode is active at a time:
    Simulations can be saved and compared (simulated trajectories only).
 4. **Model with vaccination**: not available yet (planned to build on Model 3b).
 
-## Menu (left sidebar)
+## Layout
 
-The page first shows the observed data with the fixed NPI dates, then the meaning of the
-parameters, then the fitted model you pick. A period selector at the top of the menu
-sets the window shown in every plot (all models were fitted on the whole of 2020).
+Every choice lives in the left sidebar. The main page has three tabs: **Data and
+fixed dates** (the observed series with the NPI changepoints), **Parameters**
+(fixed and estimated), and **Fitted model**. Running a model opens the Fitted model
+tab, where a row of views (Fit, Fit quality, Parameters, Rₜ, Epidemic metrics,
+Overlay) replaces the old single long page; only the open view is drawn. All charts
+are interactive: hover a panel to read each day's values, or a dashed line for its
+intervention. In mode 2, the period selector sets the window shown in every plot
+(all models were fitted on the whole of 2020).
+
+In the scenario mode, each run is drawn against the fitted baseline (dashed) and the
+headline numbers show the change against it.
 
 Choices:
 
@@ -51,7 +59,11 @@ streamlit run app.py
 
 ## Files
 
-- `app.py` — Streamlit interface (the decision tree + plotting)
+- `app.py` — Streamlit interface (the decision tree and the result views)
+- `charts.py` — interactive Altair charts, and their PNG export for the ZIP downloads
+  (vl-convert, no browser needed; text uses the bundled Inter font in `assets/fonts/`)
+- `ui.py` — header, sidebar footer, empty states and page CSS
+- `.streamlit/config.toml` — light/dark theme and colour palette
 - `data.py` — loads the precomputed results for each model variant
 - `scenarios.py` — the transmission-scenario mode (results, saving and comparing simulations)
 - `simulator.py` — runtime ODE simulator used by the scenario mode

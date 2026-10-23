@@ -1,0 +1,40 @@
+[theme]
+font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap, sans-serif"
+headingFontWeights = [700, 650, 600, 600, 600, 600]
+headingFontSizes = ["2.1rem", "1.55rem", "1.2rem", "1.05rem", "1rem", "0.95rem"]
+baseFontSize = 15
+baseRadius = "0.6rem"
+buttonRadius = "0.5rem"
+showWidgetBorder = true
+showSidebarBorder = true
+linkUnderline = false
+chartCategoricalColors = ["#0072B2", "#E69F00", "#009E73", "#CC79A7", "#D55E00", "#56B4E9", "#7A5195", "#8A8F98"]
+
+[theme.light]
+primaryColor = "#0E6BA8"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F3F5F8"
+textColor = "#1D2433"
+linkColor = "#0E6BA8"
+borderColor = "#E1E5EB"
+dataframeHeaderBackgroundColor = "#F3F5F8"
+
+[theme.light.sidebar]
+backgroundColor = "#F6F8FB"
+secondaryBackgroundColor = "#EAEEF3"
+
+[theme.dark]
+primaryColor = "#5AAEE6"
+backgroundColor = "#0F141B"
+secondaryBackgroundColor = "#1A212B"
+textColor = "#E4E8EE"
+linkColor = "#7CC0EE"
+borderColor = "#2A3340"
+dataframeHeaderBackgroundColor = "#1A212B"
+
+[theme.dark.sidebar]
+backgroundColor = "#131921"
+secondaryBackgroundColor = "#1E2631"
+
+[client]
+toolbarMode = "viewer"
