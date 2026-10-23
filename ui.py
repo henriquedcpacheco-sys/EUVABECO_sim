@@ -53,7 +53,7 @@ def render_header():
         '<div class="app-lede">Explore how a compartmental model fitted to Portugal\'s '
         "2020 epidemic reproduces confirmed cases, ward and ICU occupancy and deaths, "
         "compare model versions of increasing complexity, and test counterfactual "
-        "second-wave lockdowns.</div>"
+        "extra or earlier lockdowns.</div>"
         '<div class="app-authors"><b>Henrique Pacheco</b>, CEMAT &nbsp;·&nbsp; '
         "<b>Erida Gjini</b>, CEMAT*</div>",
         unsafe_allow_html=True,

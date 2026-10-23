@@ -169,11 +169,17 @@ def bands_panel(d, series, title, cps, start, end, unit=""):
 
 
 def scenario_panel(d, series, title, cps, start, end, window=None, unit="",
-                   value_col="value", baseline_col=None, fmt=",.0f"):
-    """A simulated series, optionally drawn over the baseline (dashed)."""
+                   value_col="value", baseline_col=None, fmt=",.0f",
+                   lo_col=None, hi_col=None):
+    """A simulated series, optionally drawn over the baseline (dashed) and/or
+    a shaded 95% credible band (lo_col/hi_col, e.g. from posterior draws)."""
     base = alt.Chart(d).encode(x=alt.X("date:T", axis=_X_AXIS))
     parts = [window_band(window, start, end), changepoint_rules(cps, start, end)]
     tip = [_q(value_col, "Scenario" if baseline_col else "Simulated", fmt)]
+    if lo_col and hi_col:
+        parts.append(base.mark_area(color=SERIES_COLORS[series], opacity=0.22).encode(
+            y=alt.Y(f"{lo_col}:Q", axis=_y_axis(unit)), y2=f"{hi_col}:Q"))
+        tip += [_q(lo_col, "95% CI, low", fmt), _q(hi_col, "95% CI, high", fmt)]
     if baseline_col:
         parts.append(base.mark_line(color=OBS_COLOR, strokeDash=[6, 4], strokeWidth=1.8)
                      .encode(y=alt.Y(f"{baseline_col}:Q", axis=_y_axis(unit))))

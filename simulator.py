@@ -23,6 +23,8 @@ TOTINF = 1 / GC + 1 / GI          # = 7 days, so R0 = 7 * beta
 FITTED_CP = [29, 70, 197, 250]    # day of each fitted beta switch
 N_DAYS = 306
 DAY0 = pd.Timestamp("2020-03-01")
+AGE_NTNORM = 12632                # Ch(t) = exp(-F_test * NT(t) / AGE_NTNORM)
+AGE_MULT = np.array([1.0, 2.0, 4.0, 8.0])   # psi_a / psi_base per age group
 
 
 @dataclass(frozen=True)
@@ -105,6 +107,94 @@ def simulate(inp: ModelInputs, schedule: tuple) -> pd.DataFrame:
         "Rt": beta_day * TOTINF * out[:, 0] / N_POP,
         "beta": beta_day,
     })
+
+
+def age_psi_matrix(draws: pd.DataFrame, cov: pd.DataFrame) -> np.ndarray:
+    """psi(t) for every posterior draw, shape (n_draws, N_DAYS): Ch(t) * psi_base
+    * (age-mix-weighted multiplier), the same formula the fitted psi(t) curve
+    uses (Tese/D2/d2_app_age_bayes_export.m), reconstructed per draw from the
+    daily covariates (age mix, test volume), which are themselves the same
+    for every draw."""
+    m_t = cov[["p_0_49", "p_50_59", "p_60_69", "p_70plus"]].to_numpy() @ AGE_MULT
+    NT = cov["NT"].to_numpy()
+    Ch = np.exp(-draws["F_test"].to_numpy()[:, None] * NT[None, :] / AGE_NTNORM)
+    return Ch * draws["psi_base"].to_numpy()[:, None] * m_t[None, :]
+
+
+@st.cache_data(ttl=600, max_entries=16, show_spinner=False)
+def simulate_draws(draw_idx: tuple, start_day, duration, reduction) -> dict:
+    """Vectorized integration of Model 3b (age_point) across many posterior
+    draws at once: one state vector per draw, stacked, so the whole batch is
+    a handful of solve_ivp calls (one per schedule segment) instead of one
+    per draw -- orders of magnitude faster than looping draw by draw.
+    `start_day`/`duration`/`reduction` describe an optional extra-lockdown
+    window on top of the fitted schedule (all three None for the baseline).
+    Returns daily totals per draw: cases, ward, icu, deaths, each (N_DAYS, n).
+    """
+    from data import load_age_bayes_draws, load_age_covariates  # avoid import cycle
+
+    draws = load_age_bayes_draws().iloc[list(draw_idx)].reset_index(drop=True)
+    cov = load_age_covariates()
+    psi_mat = age_psi_matrix(draws, cov)
+    betas_mat = draws[[f"beta{k}" for k in range(1, 6)]].to_numpy()
+    theta = draws["theta"].to_numpy()
+    phi_h = draws["phi_h"].to_numpy()
+    phi_c = draws["r_c"].to_numpy() * phi_h
+    E0 = draws["E0"].to_numpy()
+    n = len(draws)
+
+    cps = [0] + FITTED_CP + [N_DAYS - 1]
+    if start_day is None:
+        bounds, window = cps, None
+    else:
+        end = min(start_day + duration, N_DAYS - 1)
+        bounds = sorted(set(cps + [start_day, end]))
+        window = (start_day, end)
+
+    f0 = (1 / GC) / (1 / GC + 1 / GI)
+    y = np.zeros((10, n))
+    y[0], y[1], y[2], y[3] = N_POP - E0 - 1.0, E0, f0, 1 - f0
+    days = np.arange(N_DAYS)
+    out = np.zeros((N_DAYS, 10, n))
+
+    for a, b in zip(bounds[:-1], bounds[1:]):
+        k = max(i for i in range(5) if cps[i] <= a)
+        seg_beta = betas_mat[:, k].copy()
+        if window is not None and window[0] <= a < window[1]:
+            seg_beta *= (1 - reduction)
+        tseg = days[(days >= a) & (days <= b)]
+        if len(tseg) < 2:
+            continue
+
+        def rhs(t, yflat, seg_beta=seg_beta):
+            tt = min(max(int(np.floor(t)), 0), N_DAYS - 1)
+            S, E, Iuc, Ic, Ti, H, ICU, R, D, C = yflat.reshape(10, n)
+            psi_t = psi_mat[:, tt]
+            lam = seg_beta * (Iuc + Ic) / (S + E + Iuc + Ic + Ti + H + ICU + R + D)
+            dS = -lam * S
+            dE = lam * S - SIG * E
+            dIuc = SIG * E - GC * Iuc
+            dIc = GC * Iuc - GI * Ic
+            dTi = (1 - psi_t) * GI * Ic - ALPHA * Ti
+            dH = psi_t * GI * Ic - GH * H
+            dICU = GH * theta * H - GICU * ICU
+            dR = (1 - PHIQ) * ALPHA * Ti + (1 - phi_h) * GH * (1 - theta) * H + (1 - phi_c) * GICU * ICU
+            dD = PHIQ * ALPHA * Ti + phi_h * GH * (1 - theta) * H + phi_c * GICU * ICU
+            dC = GC * Iuc
+            return np.stack([dS, dE, dIuc, dIc, dTi, dH, dICU, dR, dD, dC]).ravel()
+
+        sol = solve_ivp(rhs, (tseg[0], tseg[-1]), y.ravel(), method="RK45", t_eval=tseg,
+                        rtol=1e-5, atol=1e-5)
+        out[tseg] = sol.y.T.reshape(len(tseg), 10, n)
+        y = sol.y[:, -1].reshape(10, n)
+
+    C, Dcum = out[:, 9, :], out[:, 8, :]
+    return {
+        "cases": np.maximum(np.diff(C, axis=0, prepend=0.0), 0),
+        "ward": out[:, 5, :],
+        "icu": out[:, 6, :],
+        "deaths": np.maximum(np.diff(Dcum, axis=0, prepend=0.0), 0),
+    }
 
 
 def lockdown_schedule(betas, start_day: int, duration: int, reduction: float) -> tuple:
