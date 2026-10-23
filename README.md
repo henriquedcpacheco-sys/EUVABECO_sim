@@ -12,13 +12,13 @@ Only one mode is active at a time:
 
 1. **Estimate early dynamics**: the fitted models on the whole of 2020 (fixed time period).
 2. **Estimate partial early dynamics**: the same, with a selectable time period.
-3. **Transmission scenarios**: a counterfactual second lockdown. The fitted
-   second state of emergency (β₄ → β₅ on 06/11/2020) is replaced by a lockdown
-   with a chosen start date and duration, during which Rₜ is reduced by 40%
-   (adjustable); before and after it transmission stays at β₄. The model is
-   re-integrated in the app (`simulator.py`, a Python port of the thesis ODE,
-   with inputs from `Tese/D2/d2_app_sim_inputs_export.m`). Simulations can be
-   saved and compared (simulated trajectories only).
+3. **Transmission scenarios**: an extra second-wave lockdown on top of the fitted
+   baseline. The fitted transmission (including the 06/11/2020 switch β₄ → β₅) is
+   kept, and from a chosen start date, for up to 14 days, Rₜ is reduced by 40%
+   (adjustable) relative to the baseline; outside that window it is the baseline.
+   The model is re-integrated in the app (`simulator.py`, a Python port of the
+   thesis ODE, with inputs from `Tese/D2/d2_app_sim_inputs_export.m`).
+   Simulations can be saved and compared (simulated trajectories only).
 4. **Model with vaccination**: not available yet (planned to build on Model 3b).
 
 ## Menu (left sidebar)

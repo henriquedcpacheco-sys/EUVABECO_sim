@@ -108,18 +108,17 @@ def simulate(inp: ModelInputs, schedule: tuple) -> pd.DataFrame:
 
 
 def lockdown_schedule(betas, start_day: int, duration: int, reduction: float) -> tuple:
-    """Second-wave counterfactual: the fitted second state of emergency
-    (beta5 from day 250) is removed, so beta4 continues; from start_day, for
-    `duration` days, transmission (and so R_t) is cut by `reduction`, and
-    then returns to beta4. Everything before the third changepoint (day 197)
-    stays as fitted."""
-    b4 = betas[3]
+    """Counterfactual extra reduction on top of the fitted transmission: the
+    fitted beta(t) (all five segments, including the 06/11/2020 switch) is
+    kept, and from start_day, for `duration` days, it is multiplied by
+    (1 - reduction), so R_t is `reduction` lower than in the baseline at
+    every point of that window. Outside the window beta(t) is as fitted."""
     end = min(start_day + duration, N_DAYS - 1)
-    cps = [0, FITTED_CP[0], FITTED_CP[1], FITTED_CP[2]]
-    sched = [(cps[k], cps[k + 1], betas[k]) for k in range(3)]
-    sched.append((FITTED_CP[2], start_day, b4))
-    if end > start_day:
-        sched.append((start_day, end, b4 * (1 - reduction)))
-    if end < N_DAYS - 1:
-        sched.append((end, N_DAYS - 1, b4))
+    cps = [0] + FITTED_CP + [N_DAYS - 1]
+    bounds = sorted(set(cps + [start_day, end]))
+    sched = []
+    for a, b in zip(bounds[:-1], bounds[1:]):
+        k = max(i for i in range(5) if cps[i] <= a)
+        beta = betas[k] * ((1 - reduction) if start_day <= a < end else 1.0)
+        sched.append((a, b, beta))
     return tuple(sched)

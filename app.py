@@ -91,7 +91,7 @@ mode = sb.radio(
     captions=[
         "Whole of 2020, fixed time period",
         "Choose the time period",
-        "Second lockdown: date, duration, Rₜ −40%",
+        "Second wave: Rₜ −40% on top of the baseline, up to 14 days",
         "Not available yet",
     ],
 )
