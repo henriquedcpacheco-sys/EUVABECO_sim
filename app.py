@@ -666,7 +666,7 @@ def render_models_at_a_glance():
                 "Estimated parameters", format="%d"),
             **{c: st.column_config.NumberColumn(format="%.1f") for c in keep[1:-1]},
             "J — total": st.column_config.ProgressColumn(
-                "J — total (lower is better)", format="%.1f", min_value=0,
+                "J — total", format="%.1f", min_value=0,
                 max_value=float(glance["J — total"].max())),
         },
     )
