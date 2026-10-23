@@ -1,8 +1,8 @@
-"""'Transmission scenarios' mode: a counterfactual second lockdown.
+"""'Transmission scenarios' mode: a counterfactual second-wave lockdown.
 
-The fitted second state of emergency (beta4 -> beta5 on 06/11/2020) is
-replaced by a lockdown whose start date and duration the user chooses,
-during which R_t is cut by a given percentage (40% by default). The model
+On top of the fitted transmission (all segments kept, including the
+06/11/2020 switch), R_t is cut by a given percentage (40% by default) for a
+window of up to 14 days whose start date the user chooses. The model
 is re-integrated at runtime (simulator.py) with each model's fitted
 parameters. Only simulated values are shown here, never observed data.
 """
@@ -35,6 +35,7 @@ SCN_MODELS = {
 }
 MODEL_SHORT = {"sim_m1": "Model 1", "sim_m2": "Model 2", "age_nocorr": "Model 3a", "age_point": "Model 3b"}
 SCENARIO_TYPES = ["Baseline (as fitted)", "Second lockdown: Rₜ reduction"]
+MAX_DURATION = 14
 COMPARE_COLORS = plt.rcParams["axes.prop_cycle"].by_key()["color"]
 
 FITTED_SWITCH = FITTED_CP[3]            # day 250 = 06/11/2020
@@ -54,17 +55,12 @@ def _window(df, start, end):
 
 
 def _mark(ax, scn, start, end):
-    """Dashed: changepoints in use. Dotted grey: the fitted second switch when
-    it was replaced. Shaded: the counterfactual lockdown."""
-    used = FITTED_CP if scn is None else FITTED_CP[:3]
-    for day in used:
+    """Dashed: the fitted changepoints. Shaded: the extra Rₜ reduction."""
+    for day in FITTED_CP:
         d = day_to_date(day)
         if start <= d <= end:
             ax.axvline(d, color="0.25", ls="--", lw=1.4)
     if scn is not None:
-        d = day_to_date(FITTED_SWITCH)
-        if start <= d <= end:
-            ax.axvline(d, color="0.6", ls=":", lw=1.3)
         a = max(day_to_date(scn["start"]), start)
         b = min(day_to_date(scn["start"] + scn["duration"]), end)
         if a < b:
@@ -121,18 +117,17 @@ def render_scenarios(sb):
         start_date = sb.date_input(
             "Lockdown start date", value=day_to_date(FITTED_SWITCH).date(),
             min_value=day_to_date(EARLIEST_START).date(),
-            max_value=day_to_date(N_DAYS - 2).date(),
+            max_value=day_to_date(N_DAYS - 1 - MAX_DURATION).date(),
             format="DD/MM/YYYY", key="scn_start",
-            help="The fitted changepoint is 06/11/2020: pick an earlier or later "
-                 "date to move the lockdown.",
+            help="The fitted changepoint is 06/11/2020: pick it, or an earlier "
+                 "or later date.",
         )
         start_day = date_to_day(start_date)
-        max_dur = N_DAYS - 1 - start_day
         duration = sb.slider(
-            "Duration of the Rₜ reduction (days)", min_value=1, max_value=max_dur,
-            value=min(max_dur, N_DAYS - 1 - FITTED_SWITCH), key="scn_duration",
-            help="How long, from the start date, Rₜ stays reduced. The default "
-                 "lasts until the end of the simulated period (31/12/2020).",
+            "Duration of the Rₜ reduction (days)", min_value=1, max_value=MAX_DURATION,
+            value=MAX_DURATION, key="scn_duration",
+            help="How long, from the start date, Rₜ stays reduced (up to 14 days). "
+                 "Afterwards it is back to the baseline Rₜ.",
         )
         reduction = sb.slider("Rₜ reduction (%)", min_value=5, max_value=90, value=40,
                               step=5, key="scn_reduction")
@@ -155,16 +150,15 @@ def render_scenarios(sb):
 
     st.header("Transmission scenarios: the second lockdown")
     st.markdown(
-        "What if the second lockdown had started on a different date, or lasted "
-        "a different time? In the fitted models, transmission switches from β₄ to "
-        "β₅ on **06/11/2020** (second state of emergency). In a scenario this "
-        "switch is removed, and instead:\n"
-        "- up to the chosen **start date**, transmission stays at the pre-lockdown "
-        "level β₄;\n"
-        "- from the start date, for the chosen **duration**, Rₜ is reduced by the "
-        "chosen percentage (**40%** by default), i.e. β = (1 − 0.40)·β₄;\n"
-        "- after that, transmission returns to β₄.\n\n"
-        "Everything before 14/09/2020 and all the other parameters stay as fitted. "
+        "What if an extra lockdown had been added in the second wave? The "
+        "scenario starts from the fitted baseline, where transmission switches "
+        "from β₄ to β₅ on **06/11/2020** (second state of emergency), and keeps it:\n"
+        "- from the chosen **start date**, for the chosen **duration** (up to "
+        "14 days), Rₜ is the baseline Rₜ reduced by the chosen percentage "
+        "(**40%** by default), i.e. β(t) = (1 − 0.40)·β_fitted(t);\n"
+        "- before and after that window, transmission is exactly the baseline "
+        "one (β₄ before 06/11/2020, β₅ after).\n\n"
+        "All the other parameters stay as fitted. "
         "The model is simulated again for each scenario; all the results are "
         "simulated trajectories. Run a simulation, save it (for example the "
         "baseline), run and save other scenarios, and compare them in **Compare**."
@@ -205,9 +199,9 @@ def _render_results(cfg, current, saved):
     b4, b5 = inp.betas[3], inp.betas[4]
     st.caption(
         f"Period: {start:%d/%m/%Y} – {end:%d/%m/%Y}. Dashed lines: changepoints in use"
-        + ("; dotted grey line: the fitted 06/11/2020 switch it replaces; shaded: the "
-           "lockdown with reduced Rₜ" if scn is not None else "")
-        + f". For reference, the fitted switch on 06/11/2020 reduced β by "
+        + ("; shaded: the window where Rₜ is reduced from the baseline"
+           if scn is not None else "")
+        + f". For reference, the fitted switch on 06/11/2020 already reduces β by "
         f"{100 * (1 - b5 / b4):.0f}% in this model (β₄ = {b4:.4f} → β₅ = {b5:.4f})."
     )
 
