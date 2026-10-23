@@ -34,7 +34,7 @@ SCN_MODELS = {
     "Model 3b — age-stratified ψ, with testing-volume coupling": "age_point",
 }
 MODEL_SHORT = {"sim_m1": "Model 1", "sim_m2": "Model 2", "age_nocorr": "Model 3a", "age_point": "Model 3b"}
-SCENARIO_TYPES = ["Baseline (as fitted)", "Second lockdown transmission (Rₜ)"]
+SCENARIO_TYPES = ["Baseline", "Second lockdown transmission (Rₜ)"]
 MAX_DURATION = 14
 COMPARE_COLORS = plt.rcParams["axes.prop_cycle"].by_key()["color"]
 
@@ -91,7 +91,7 @@ def _png(fig) -> bytes:
 
 def scenario_title(model_key, scn) -> str:
     if scn is None:
-        return f"{MODEL_SHORT[model_key]} · Baseline (as fitted)"
+        return f"{MODEL_SHORT[model_key]} · Baseline"
     return (f"{MODEL_SHORT[model_key]} · Lockdown from {day_to_date(scn['start']):%d/%m/%Y}, "
             f"{scn['duration']} days, Rₜ −{scn['reduction']}%")
 
@@ -109,8 +109,7 @@ def render_scenarios(sb):
     model_key = SCN_MODELS[model_label]
 
     sb.subheader("2. Second lockdown")
-    sb.markdown(f"Fitted changepoint: **{day_to_date(FITTED_SWITCH):%d/%m/%Y}** "
-                "(second state of emergency, β₄ → β₅).")
+    sb.markdown(f"Second wave changepoint: **{day_to_date(FITTED_SWITCH):%d/%m/%Y}**")
     scn_type = sb.radio("Scenario", SCENARIO_TYPES, key="scn_type")
     scn = None
     if scn_type == SCENARIO_TYPES[1]:
