@@ -148,22 +148,6 @@ def render_scenarios(sb):
     if run:
         st.session_state.scn_config = config
 
-    st.header("Transmission scenarios: the second lockdown")
-    st.markdown(
-        "What if an extra lockdown had been added in the second wave? The "
-        "scenario starts from the fitted baseline, where transmission switches "
-        "from β₄ to β₅ on **06/11/2020** (second state of emergency), and keeps it:\n"
-        "- from the chosen **start date**, for the chosen **duration** (up to "
-        "14 days), Rₜ is the baseline Rₜ reduced by the chosen percentage "
-        "(**40%** by default), i.e. β(t) = (1 − 0.40)·β_fitted(t);\n"
-        "- before and after that window, transmission is exactly the baseline "
-        "one (β₄ before 06/11/2020, β₅ after).\n\n"
-        "All the other parameters stay as fitted. "
-        "The model is simulated again for each scenario; all the results are "
-        "simulated trajectories. Run a simulation, save it (for example the "
-        "baseline), run and save other scenarios, and compare them in **Compare**."
-    )
-
     tab_results, tab_compare = st.tabs(["📊 Results", "⚖️ Compare"])
     with tab_results:
         cfg = st.session_state.get("scn_config")
