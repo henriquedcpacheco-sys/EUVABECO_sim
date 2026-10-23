@@ -290,8 +290,6 @@ def _render_compare(saved):
     chosen = st.multiselect("Saved simulations", names, default=names, key="cmp_chosen")
     series_label = st.radio("Series", list(SCN_SERIES.values()), horizontal=True, key="cmp_series")
     s = {v: k for k, v in SCN_SERIES.items()}[series_label]
-    log_y = st.checkbox("Logarithmic y-axis (useful when the scenarios differ a lot in size)",
-                        key="cmp_log")
 
     if chosen:
         fig, ax = plt.subplots(figsize=(10, 4.4))
@@ -300,8 +298,6 @@ def _render_compare(saved):
             ax.plot(d["date"], d[s], lw=2, color=COMPARE_COLORS[i % len(COMPARE_COLORS)], label=n)
         if s == "Rt":
             ax.axhline(1, color="black", lw=1, ls=":")
-        if log_y:
-            ax.set_yscale("log")
         ax.set_title(f"{series_label} — saved simulations")
         ax.set_ylabel(series_label)
         ax.tick_params(axis="x", rotation=30)
