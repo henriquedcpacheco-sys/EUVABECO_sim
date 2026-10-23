@@ -624,10 +624,6 @@ if model_key and st.session_state.get("simulated"):
 
         st.markdown("**Peak of each series**")
         st.dataframe(peaks, hide_index=True, use_container_width=True)
-        st.caption(
-            "For ward and ICU the peak is the highest occupancy (beds in use); "
-            "for cases and deaths it is the highest daily count."
-        )
         metrics_table = pd.concat([
             pd.DataFrame([
                 {"Metric": "Days simulated", "Simulated": n_days},
