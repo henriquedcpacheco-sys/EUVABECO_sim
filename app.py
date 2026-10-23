@@ -306,274 +306,356 @@ if model_choice and model_choice.startswith("Model 3"):
 if model_key and st.session_state.get("simulated"):
     result = load_age_bayes() if model_key == "age_bayes" else load_deterministic(model_key)
     st.subheader(result.label)
+    tab_res, tab_met = st.tabs(["📈 Results: plots and errors", "🔢 Metrics"])
 
-    if result.has_bands:
-        st.markdown(
-            "A short pilot chain first tunes the sampler; three longer chains "
-            "(one started at the least-squares estimate, two started well away "
-            "from it) are then run and pooled once they agree. The fitting is "
-            "done on the effective sample size of the time series: consecutive "
-            "days tend to share the same deviation from the model, so the data "
-            "carry fewer independent observations than the raw number of days. "
-            
-        )
-        st.caption(
-            "Darker band: 95% credible interval on the model's trajectory "
-            "(parameter uncertainty only). Lighter band: 95% posterior "
-            "predictive interval, where a new day's observation would be "
-            "expected to fall (parameters plus observation noise). Red line: "
-            "the model run with the posterior mean of each parameter. Black "
-            "squares: observed data."
-        )
+    with tab_res:
 
-    fig, axes = plt.subplots(2, 2, figsize=(10, 6.4))
-    for ax, series in zip(axes.flat, SERIES):
-        d = in_window(result.trajectories[result.trajectories["series"] == series])
         if result.has_bands:
-            # obs_* = posterior predictive, pred_* = parameter-only credible band
-            c = SERIES_COLORS[series]
-            ax.fill_between(
-                d["date"], d["obs_lo"], d["obs_hi"],
-                color=c, alpha=0.15, lw=0, label="95% posterior predictive",
-            )
-            ax.fill_between(
-                d["date"], d["pred_lo"], d["pred_hi"],
-                color=c, alpha=0.35, lw=0, label="95% credible interval",
-            )
-            ax.scatter(d["date"], d["obs"], s=7, marker="s", color="black", label="Observed")
-            ax.plot(
-                d["date"], d["point_est"], color="red", lw=1.4,
-                label="Model at posterior-mean parameters",
-            )
-        else:
-            ax.scatter(d["date"], d["obs"], s=6, color="grey", alpha=0.6, label="Observed")
-            ax.plot(d["date"], d["sim"], color="steelblue", lw=1.5, label="Fitted model")
-        mark_changepoints(ax)
-        ax.set_title(SERIES_LABELS[series])
-        ax.tick_params(axis="x", rotation=30)
-    axes.flat[0].legend(fontsize=7, loc="upper left")
-    fig.tight_layout()
-    st.pyplot(fig)
-
-    if result.has_bands:
-        with st.container(border=True):
-            st.subheader("Obtaining the two bands")
             st.markdown(
-                r"""
-500 parameter sets were taken from the chain, spread evenly over the pooled chains, and are used
-to build both bands.
-
-**95% credible interval (darker band): uncertainty in the model curve.**
-- Each of the 500 parameter sets is run through the ODE model, giving 500
-  model trajectories per series.
-- On each day, the band goes from the 2.5% to the 97.5% quantile of those
-  500 values, so it holds the middle 95% of the trajectories.
-
-**95% posterior predictive interval (lighter band)**
-
-- It uses the same 500 parameter sets, taken evenly spaced from the
-  pooled chains, as the darker band.
-- Every MCMC iteration saves, next to the parameter set, the noise
-  variance $\sigma^2$ drawn at that same iteration; for parameter set $i$,
-  its own $\sigma_i^2$ is used.
-- Each trajectory $Y_v^{(i)}(t)$ (series $v$, parameter set $i$) is run
-  through the ODE model, as for the darker band, and then multiplied on
-  each day by $\exp(\epsilon_i(t))$, with
-  $\epsilon_i(t) \sim \mathcal{N}(0, \sigma_i^2)$ drawn independently
-  each day: the same log-scale noise the model is fit with.
-- On each day, the band goes from the 2.5% to the 97.5% quantile of
-  those 500 noisy values.
-- It is the actual posterior predictive interval: the range a new
-  observation on that day could plausibly fall in.
-"""
+                "A short pilot chain first tunes the sampler; three longer chains "
+                "(one started at the least-squares estimate, two started well away "
+                "from it) are then run and pooled once they agree. The fitting is "
+                "done on the effective sample size of the time series: consecutive "
+                "days tend to share the same deviation from the model, so the data "
+                "carry fewer independent observations than the raw number of days. "
+            
+            )
+            st.caption(
+                "Darker band: 95% credible interval on the model's trajectory "
+                "(parameter uncertainty only). Lighter band: 95% posterior "
+                "predictive interval, where a new day's observation would be "
+                "expected to fall (parameters plus observation noise). Red line: "
+                "the model run with the posterior mean of each parameter. Black "
+                "squares: observed data."
             )
 
-    if result.summary is not None:
-        s = result.summary
-        st.subheader("Objective function")
-        st.markdown(
-            "Parameters are estimated by minimising the sum of squared "
-            "log-residuals between each observed series and its simulated "
-            "counterpart, summed over the four series:"
-        )
-        st.latex(
-            r"J = \sum_{s \,\in\, \{\text{cases, ward, ICU, deaths}\}} "
-            r"\sum_{t} \Big(\log(y_s(t)+1) - \log(\hat{y}_s(t)+1)\Big)^2"
-        )
-        j_table = pd.DataFrame(
-            {
-                "Series": ["Cases", "Ward", "ICU", "Deaths", "Total"],
-                "J": [
-                    round(s["J_cases"], 1),
-                    round(s["J_ward"], 1),
-                    round(s["J_icu"], 1),
-                    round(s["J_deaths"], 1),
-                    round(s["J_total"], 1),
-                ],
-            }
-        )
-        st.dataframe(j_table, hide_index=True, use_container_width=True)
+        fig, axes = plt.subplots(2, 2, figsize=(10, 6.4))
+        for ax, series in zip(axes.flat, SERIES):
+            d = in_window(result.trajectories[result.trajectories["series"] == series])
+            if result.has_bands:
+                # obs_* = posterior predictive, pred_* = parameter-only credible band
+                c = SERIES_COLORS[series]
+                ax.fill_between(
+                    d["date"], d["obs_lo"], d["obs_hi"],
+                    color=c, alpha=0.15, lw=0, label="95% posterior predictive",
+                )
+                ax.fill_between(
+                    d["date"], d["pred_lo"], d["pred_hi"],
+                    color=c, alpha=0.35, lw=0, label="95% credible interval",
+                )
+                ax.scatter(d["date"], d["obs"], s=7, marker="s", color="black", label="Observed")
+                ax.plot(
+                    d["date"], d["point_est"], color="red", lw=1.4,
+                    label="Model at posterior-mean parameters",
+                )
+            else:
+                ax.scatter(d["date"], d["obs"], s=6, color="grey", alpha=0.6, label="Observed")
+                ax.plot(d["date"], d["sim"], color="steelblue", lw=1.5, label="Fitted model")
+            mark_changepoints(ax)
+            ax.set_title(SERIES_LABELS[series])
+            ax.tick_params(axis="x", rotation=30)
+        axes.flat[0].legend(fontsize=7, loc="upper left")
+        fig.tight_layout()
+        st.pyplot(fig)
 
-    if result.has_bands:
-        fit, _ = load_age_bayes_fit()
-        summ = load_summary()
-        st.subheader("Fit quality of the posterior")
-        st.markdown(
-            "The residuals are the same log-residuals as in the other models, "
-            "now taken between the data and the **red line** (the model run "
-            "with the posterior mean of each parameter):"
-        )
-        st.latex(
-            r"J = \sum_{s \,\in\, \{\text{cases, ward, ICU, deaths}\}} "
-            r"\sum_{t} \Big(\log(y_s(t)+1) - \log(\hat{y}_s(t)+1)\Big)^2"
-        )
-        st.markdown(
-            "Since every parameter set in the posterior gives its own curve, "
-            "J is also computed for each of the 500 parameter sets used for "
-            "the bands, giving a posterior mean and a 95% interval for J."
-        )
-        cols = ["cases", "ward", "icu", "deaths", "total"]
-        j_table = pd.DataFrame(
-            {
-                "Series": ["Cases", "Ward", "ICU", "Deaths", "Total"],
-                "J at posterior-mean parameters": [round(fit.loc["J_post_mean_params", c], 1) for c in cols],
-                "Posterior mean of J": [round(fit.loc["J_draws_mean", c], 1) for c in cols],
-                "95% interval of J": [
-                    f"[{fit.loc['J_draws_lo', c]:.1f}, {fit.loc['J_draws_hi', c]:.1f}]" for c in cols
-                ],
-            }
-        )
-        st.dataframe(j_table, hide_index=True, use_container_width=True)
+        if result.has_bands:
+            with st.container(border=True):
+                st.subheader("Obtaining the two bands")
+                st.markdown(
+                    r"""
+    500 parameter sets were taken from the chain, spread evenly over the pooled chains, and are used
+    to build both bands.
+
+    **95% credible interval (darker band): uncertainty in the model curve.**
+    - Each of the 500 parameter sets is run through the ODE model, giving 500
+      model trajectories per series.
+    - On each day, the band goes from the 2.5% to the 97.5% quantile of those
+      500 values, so it holds the middle 95% of the trajectories.
+
+    **95% posterior predictive interval (lighter band)**
+
+    - It uses the same 500 parameter sets, taken evenly spaced from the
+      pooled chains, as the darker band.
+    - Every MCMC iteration saves, next to the parameter set, the noise
+      variance $\sigma^2$ drawn at that same iteration; for parameter set $i$,
+      its own $\sigma_i^2$ is used.
+    - Each trajectory $Y_v^{(i)}(t)$ (series $v$, parameter set $i$) is run
+      through the ODE model, as for the darker band, and then multiplied on
+      each day by $\exp(\epsilon_i(t))$, with
+      $\epsilon_i(t) \sim \mathcal{N}(0, \sigma_i^2)$ drawn independently
+      each day: the same log-scale noise the model is fit with.
+    - On each day, the band goes from the 2.5% to the 97.5% quantile of
+      those 500 noisy values.
+    - It is the actual posterior predictive interval: the range a new
+      observation on that day could plausibly fall in.
+    """
+                )
+
+        if result.summary is not None:
+            s = result.summary
+            st.subheader("Objective function")
+            st.markdown(
+                "Parameters are estimated by minimising the sum of squared "
+                "log-residuals between each observed series and its simulated "
+                "counterpart, summed over the four series:"
+            )
+            st.latex(
+                r"J = \sum_{s \,\in\, \{\text{cases, ward, ICU, deaths}\}} "
+                r"\sum_{t} \Big(\log(y_s(t)+1) - \log(\hat{y}_s(t)+1)\Big)^2"
+            )
+            j_table = pd.DataFrame(
+                {
+                    "Series": ["Cases", "Ward", "ICU", "Deaths", "Total"],
+                    "J": [
+                        round(s["J_cases"], 1),
+                        round(s["J_ward"], 1),
+                        round(s["J_icu"], 1),
+                        round(s["J_deaths"], 1),
+                        round(s["J_total"], 1),
+                    ],
+                }
+            )
+            st.dataframe(j_table, hide_index=True, use_container_width=True)
+
+        if result.has_bands:
+            fit, _ = load_age_bayes_fit()
+            summ = load_summary()
+            st.subheader("Fit quality of the posterior")
+            st.markdown(
+                "The residuals are the same log-residuals as in the other models, "
+                "now taken between the data and the **red line** (the model run "
+                "with the posterior mean of each parameter):"
+            )
+            st.latex(
+                r"J = \sum_{s \,\in\, \{\text{cases, ward, ICU, deaths}\}} "
+                r"\sum_{t} \Big(\log(y_s(t)+1) - \log(\hat{y}_s(t)+1)\Big)^2"
+            )
+            st.markdown(
+                "Since every parameter set in the posterior gives its own curve, "
+                "J is also computed for each of the 500 parameter sets used for "
+                "the bands, giving a posterior mean and a 95% interval for J."
+            )
+            cols = ["cases", "ward", "icu", "deaths", "total"]
+            j_table = pd.DataFrame(
+                {
+                    "Series": ["Cases", "Ward", "ICU", "Deaths", "Total"],
+                    "J at posterior-mean parameters": [round(fit.loc["J_post_mean_params", c], 1) for c in cols],
+                    "Posterior mean of J": [round(fit.loc["J_draws_mean", c], 1) for c in cols],
+                    "95% interval of J": [
+                        f"[{fit.loc['J_draws_lo', c]:.1f}, {fit.loc['J_draws_hi', c]:.1f}]" for c in cols
+                    ],
+                }
+            )
+            st.dataframe(j_table, hide_index=True, use_container_width=True)
         
-        comp_rows = [
-            ("Model 1 — constant", "sim_m1"),
-            ("Model 2 — piecewise ψ", "sim_m2"),
-            ("Model 3a — age-stratified, without coupling", "age_nocorr"),
-            ("Model 3b — age-stratified, with coupling (least squares)", "age_point"),
-        ]
-        comp = [
-            {"Model": lbl, "J (total)": round(summ.loc[k, "J_total"], 1)}
-            for lbl, k in comp_rows
-        ]
-        jpm = fit.loc["J_post_mean_params", "total"]
-        comp.append(
-            {"Model": "Model 3b — Bayesian, at posterior-mean parameters",
-             "J (total)": round(jpm, 1)}
-        )
-        comp.append(
-            {"Model": "Model 3b — Bayesian, posterior mean of J",
-             "J (total)": round(fit.loc["J_draws_mean", "total"], 1)}
-        )
-        st.markdown("**Comparison with the other models** (simultaneous fitting):")
-        st.dataframe(pd.DataFrame(comp), hide_index=True, use_container_width=True)
-        st.caption(
-            "The least-squares fit is, by construction, the parameter set with "
-            "the lowest J, so the posterior-mean curve has a slightly higher J, "
-            "and the posterior mean of J, which averages over all plausible "
-            "parameter sets, is higher still."
-        )
-
-    st.subheader("Weekly residual breakdown")
-    if result.has_bands:
-        st.caption(
-            "Residuals between the data and the red line (model at the "
-            "posterior-mean parameters)."
-        )
-    sim_col = "point_est" if result.has_bands else "sim"
-    resid = in_window(result.trajectories[["date", "series", "obs", sim_col]]).copy()
-    resid["sq_log_resid"] = (
-        np.log(resid[sim_col].clip(lower=0) + 1) - np.log(resid["obs"] + 1)
-    ) ** 2
-    resid["week"] = resid["date"].dt.to_period("W").dt.start_time
-    weekly = resid.groupby(["week", "series"])["sq_log_resid"].sum().unstack("series")
-    weekly = weekly.reindex(columns=SERIES).fillna(0.0)
-
-    fig_resid, ax_resid = plt.subplots(figsize=(10, 4))
-    bottom = np.zeros(len(weekly))
-    for s in SERIES:
-        ax_resid.bar(
-            weekly.index, weekly[s].values, bottom=bottom,
-            color=SERIES_COLORS[s], label=SERIES_LABELS[s], width=5.5,
-        )
-        bottom += weekly[s].values
-    mark_changepoints(ax_resid)
-    ax_resid.set_ylabel("Weekly squared log-residual")
-    ax_resid.tick_params(axis="x", rotation=30)
-    ax_resid.legend(fontsize=8, loc="upper left")
-    fig_resid.tight_layout()
-    st.pyplot(fig_resid)
-
-    with st.expander("Estimated parameters", expanded=True):
-        params = result.params.copy()
-        if {"ci_low", "ci_high"}.issubset(params.columns):
-            params["95% CI"] = params.apply(
-                lambda r: f"[{r['ci_low']:.4f}, {r['ci_high']:.4f}]", axis=1
+            comp_rows = [
+                ("Model 1 — constant", "sim_m1"),
+                ("Model 2 — piecewise ψ", "sim_m2"),
+                ("Model 3a — age-stratified, without coupling", "age_nocorr"),
+                ("Model 3b — age-stratified, with coupling (least squares)", "age_point"),
+            ]
+            comp = [
+                {"Model": lbl, "J (total)": round(summ.loc[k, "J_total"], 1)}
+                for lbl, k in comp_rows
+            ]
+            jpm = fit.loc["J_post_mean_params", "total"]
+            comp.append(
+                {"Model": "Model 3b — Bayesian, at posterior-mean parameters",
+                 "J (total)": round(jpm, 1)}
             )
-            params = params.drop(columns=["ci_low", "ci_high"])
-        params["Meaning"] = params["name"].map(lambda n: param_meaning(n, model_key))
-        params["name"] = params["name"].map(param_symbol)
-        param_labels = {
-            "name": "Parameter",
-            "value": "Estimate",
-            "point_est": "Least-squares estimate (start of the centred chain)",
-            "post_mean": "Posterior mean",
-        }
-        st.dataframe(
-            params.rename(columns=param_labels),
-            hide_index=True, use_container_width=True,
-        )
+            comp.append(
+                {"Model": "Model 3b — Bayesian, posterior mean of J",
+                 "J (total)": round(fit.loc["J_draws_mean", "total"], 1)}
+            )
+            st.markdown("**Comparison with the other models** (simultaneous fitting):")
+            st.dataframe(pd.DataFrame(comp), hide_index=True, use_container_width=True)
+            st.caption(
+                "The least-squares fit is, by construction, the parameter set with "
+                "the lowest J, so the posterior-mean curve has a slightly higher J, "
+                "and the posterior mean of J, which averages over all plausible "
+                "parameter sets, is higher still."
+            )
+
+        st.subheader("Weekly residual breakdown")
         if result.has_bands:
             st.caption(
-                "Least-squares estimate: the Model 3b least-squares fit, used as "
-                "the starting point of the centred chain (not estimated by the "
-                "MCMC). Posterior mean and 95% CI: from the pooled MCMC draws."
+                "Residuals between the data and the red line (model at the "
+                "posterior-mean parameters)."
             )
+        sim_col = "point_est" if result.has_bands else "sim"
+        resid = in_window(result.trajectories[["date", "series", "obs", sim_col]]).copy()
+        resid["sq_log_resid"] = (
+            np.log(resid[sim_col].clip(lower=0) + 1) - np.log(resid["obs"] + 1)
+        ) ** 2
+        resid["week"] = resid["date"].dt.to_period("W").dt.start_time
+        weekly = resid.groupby(["week", "series"])["sq_log_resid"].sum().unstack("series")
+        weekly = weekly.reindex(columns=SERIES).fillna(0.0)
 
-    fig_hist = None
-    if result.has_bands:
-        st.subheader("Posterior distributions of the parameters")
-        st.caption(
-            "Histograms of 5000 posterior draws, evenly spaced over the pooled "
-            "chains. Red line: posterior mean. Dashed black line: least-squares "
-            "estimate. Shaded: 95% CI."
+        fig_resid, ax_resid = plt.subplots(figsize=(10, 4))
+        bottom = np.zeros(len(weekly))
+        for s in SERIES:
+            ax_resid.bar(
+                weekly.index, weekly[s].values, bottom=bottom,
+                color=SERIES_COLORS[s], label=SERIES_LABELS[s], width=5.5,
+            )
+            bottom += weekly[s].values
+        mark_changepoints(ax_resid)
+        ax_resid.set_ylabel("Weekly squared log-residual")
+        ax_resid.tick_params(axis="x", rotation=30)
+        ax_resid.legend(fontsize=8, loc="upper left")
+        fig_resid.tight_layout()
+        st.pyplot(fig_resid)
+
+        with st.expander("Estimated parameters", expanded=True):
+            params = result.params.copy()
+            if {"ci_low", "ci_high"}.issubset(params.columns):
+                params["95% CI"] = params.apply(
+                    lambda r: f"[{r['ci_low']:.4f}, {r['ci_high']:.4f}]", axis=1
+                )
+                params = params.drop(columns=["ci_low", "ci_high"])
+            params["Meaning"] = params["name"].map(lambda n: param_meaning(n, model_key))
+            params["name"] = params["name"].map(param_symbol)
+            param_labels = {
+                "name": "Parameter",
+                "value": "Estimate",
+                "point_est": "Least-squares estimate (start of the centred chain)",
+                "post_mean": "Posterior mean",
+            }
+            st.dataframe(
+                params.rename(columns=param_labels),
+                hide_index=True, use_container_width=True,
+            )
+            if result.has_bands:
+                st.caption(
+                    "Least-squares estimate: the Model 3b least-squares fit, used as "
+                    "the starting point of the centred chain (not estimated by the "
+                    "MCMC). Posterior mean and 95% CI: from the pooled MCMC draws."
+                )
+
+        fig_hist = None
+        if result.has_bands:
+            st.subheader("Posterior distributions of the parameters")
+            st.caption(
+                "Histograms of 5000 posterior draws, evenly spaced over the pooled "
+                "chains. Red line: posterior mean. Dashed black line: least-squares "
+                "estimate. Shaded: 95% CI."
+            )
+            draws = load_age_bayes_draws()
+            pinfo = result.params.set_index("name")
+            fig_hist, axes_h = plt.subplots(3, 4, figsize=(11, 7.2))
+            for ax, name in zip(axes_h.flat, draws.columns):
+                ax.hist(draws[name], bins=40, color="0.6", edgecolor="white", lw=0.3)
+                r = pinfo.loc[name]
+                ax.axvspan(r["ci_low"], r["ci_high"], color="red", alpha=0.08, lw=0)
+                ax.axvline(r["post_mean"], color="red", lw=1.6)
+                ax.axvline(r["point_est"], color="black", lw=1.2, ls="--")
+                ax.set_title(param_symbol(name))
+                ax.set_yticks([])
+                ax.tick_params(axis="x", labelsize=8)
+            for ax in list(axes_h.flat)[len(draws.columns):]:
+                ax.axis("off")
+            fig_hist.tight_layout()
+            st.pyplot(fig_hist)
+
+        st.subheader("Effective reproduction number")
+        st.caption("Rₜ > 1: the epidemic grows. Rₜ < 1: the epidemic shrinks.")
+        rt = in_window(load_rt(model_key))
+        fig_rt, ax_rt = plt.subplots(figsize=(8, 3.6))
+        ax_rt.plot(
+            rt["date"], rt["Rt"], color="steelblue", lw=2,
+            label="Rₜ = β(t)(1/γ_C + 1/γ_I) · S(t)/N",
         )
-        draws = load_age_bayes_draws()
-        pinfo = result.params.set_index("name")
-        fig_hist, axes_h = plt.subplots(3, 4, figsize=(11, 7.2))
-        for ax, name in zip(axes_h.flat, draws.columns):
-            ax.hist(draws[name], bins=40, color="0.6", edgecolor="white", lw=0.3)
-            r = pinfo.loc[name]
-            ax.axvspan(r["ci_low"], r["ci_high"], color="red", alpha=0.08, lw=0)
-            ax.axvline(r["post_mean"], color="red", lw=1.6)
-            ax.axvline(r["point_est"], color="black", lw=1.2, ls="--")
-            ax.set_title(param_symbol(name))
-            ax.set_yticks([])
-            ax.tick_params(axis="x", labelsize=8)
-        for ax in list(axes_h.flat)[len(draws.columns):]:
-            ax.axis("off")
-        fig_hist.tight_layout()
-        st.pyplot(fig_hist)
+        ax_rt.axhline(1, color="black", lw=1, ls=":")
+        mark_changepoints(ax_rt)
+        ax_rt.set_ylabel("Reproduction number")
+        ax_rt.tick_params(axis="x", rotation=30)
+        ax_rt.legend(fontsize=8, loc="upper right")
+        ax_rt.grid(alpha=0.3)
+        fig_rt.tight_layout()
+        st.pyplot(fig_rt)
 
-    st.subheader("Effective reproduction number")
-    st.caption("Rₜ > 1: the epidemic grows. Rₜ < 1: the epidemic shrinks.")
-    rt = in_window(load_rt(model_key))
-    fig_rt, ax_rt = plt.subplots(figsize=(8, 3.6))
-    ax_rt.plot(
-        rt["date"], rt["Rt"], color="steelblue", lw=2,
-        label="Rₜ = β(t)(1/γ_C + 1/γ_I) · S(t)/N",
-    )
-    ax_rt.axhline(1, color="black", lw=1, ls=":")
-    mark_changepoints(ax_rt)
-    ax_rt.set_ylabel("Reproduction number")
-    ax_rt.tick_params(axis="x", rotation=30)
-    ax_rt.legend(fontsize=8, loc="upper right")
-    ax_rt.grid(alpha=0.3)
-    fig_rt.tight_layout()
-    st.pyplot(fig_rt)
+    with tab_met:
+        traj = in_window(result.trajectories)
+        sim_col = "point_est" if result.has_bands else "sim"
+        n_days = traj["date"].nunique()
+        st.markdown(
+            f"Summary of the simulated trajectories over the period shown "
+            f"(**{traj['date'].min():%d/%m/%Y} – {traj['date'].max():%d/%m/%Y}**)"
+            + (", using the model at the posterior-mean parameters (red line)."
+               if result.has_bands else ".")
+            + " Observed values are given for comparison."
+        )
+        peak_label = {
+            "cases": "Daily confirmed cases",
+            "ward": "Ward occupancy",
+            "icu": "ICU occupancy",
+            "deaths": "Daily deaths",
+        }
+        peak_rows = []
+        for series in SERIES:
+            d = traj[traj["series"] == series]
+            ks, ko = d[sim_col].idxmax(), d["obs"].idxmax()
+            peak_rows.append({
+                "Series": peak_label[series],
+                "Simulated peak day": f"{d.loc[ks, 'date']:%d/%m/%Y}",
+                "Simulated peak value": round(d.loc[ks, sim_col]),
+                "Observed peak day": f"{d.loc[ko, 'date']:%d/%m/%Y}",
+                "Observed peak value": round(d.loc[ko, "obs"]),
+            })
+        peaks = pd.DataFrame(peak_rows)
+
+        cases = traj[traj["series"] == "cases"]
+        deaths = traj[traj["series"] == "deaths"]
+        rt_w = in_window(load_rt(model_key))
+        k_rt = rt_w["Rt"].idxmax()
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Days simulated", f"{n_days}")
+        c2.metric(
+            "Total confirmed cases (simulated)", f"{cases[sim_col].sum():,.0f}",
+            help=f"Observed: {cases['obs'].sum():,.0f}",
+        )
+        c3.metric(
+            "Total deaths (simulated)", f"{deaths[sim_col].sum():,.0f}",
+            help=f"Observed: {deaths['obs'].sum():,.0f}",
+        )
+        c4.metric(
+            "Highest Rₜ", f"{rt_w.loc[k_rt, 'Rt']:.2f}",
+            help=f"Reached on {rt_w.loc[k_rt, 'date']:%d/%m/%Y}",
+        )
+        st.caption(
+            f"Observed over the same period: {cases['obs'].sum():,.0f} confirmed "
+            f"cases and {deaths['obs'].sum():,.0f} deaths. Highest Rₜ reached on "
+            f"{rt_w.loc[k_rt, 'date']:%d/%m/%Y}."
+        )
+
+        st.markdown("**Peak of each series**")
+        st.dataframe(peaks, hide_index=True, use_container_width=True)
+        st.caption(
+            "For ward and ICU the peak is the highest occupancy (beds in use); "
+            "for cases and deaths it is the highest daily count."
+        )
+        metrics_table = pd.concat([
+            pd.DataFrame([
+                {"Metric": "Days simulated", "Simulated": n_days, "Observed": n_days},
+                {"Metric": "Total confirmed cases", "Simulated": round(cases[sim_col].sum()),
+                 "Observed": round(cases["obs"].sum())},
+                {"Metric": "Total deaths", "Simulated": round(deaths[sim_col].sum()),
+                 "Observed": round(deaths["obs"].sum())},
+                {"Metric": f"Highest Rt ({rt_w.loc[k_rt, 'date']:%d/%m/%Y})",
+                 "Simulated": round(rt_w.loc[k_rt, "Rt"], 3), "Observed": None},
+            ]),
+            pd.DataFrame([
+                {"Metric": f"Peak {r['Series']} ({r['Simulated peak day']} sim. / {r['Observed peak day']} obs.)",
+                 "Simulated": r["Simulated peak value"], "Observed": r["Observed peak value"]}
+                for r in peak_rows
+            ]),
+        ], ignore_index=True)
 
     zip_buf = io.BytesIO()
     with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("all_models_comparison.csv", comp_all.to_csv())
+        zf.writestr("metrics.csv", metrics_table.to_csv(index=False))
         if result.summary is not None or result.has_bands:
             zf.writestr("objective_function_J.csv", j_table.to_csv(index=False))
         if result.has_bands:
