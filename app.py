@@ -15,10 +15,11 @@ from data import (
     NPI_EVENTS,
     SERIES_LABELS,
     TESTING_DATA_NOTE,
+    BAYES_MODELS,
     build_comparison_table,
-    load_age_bayes,
-    load_age_bayes_fit,
-    load_age_bayes_draws,
+    load_bayes,
+    load_bayes_fit,
+    load_bayes_draws,
     load_deterministic,
     load_observed,
     load_rt,
@@ -75,7 +76,7 @@ mode = sb.radio(
     captions=[
         "Whole of 2020, fixed time period",
         "Choose the time period",
-        "Second wave: Rₜ −40% on top of the baseline, up to 14 days",
+        "Extra/earlier lockdown: any start date and duration, Rₜ reduced on top of the baseline",
         "Not available yet",
     ],
 )
@@ -129,10 +130,12 @@ model_choice = sb.radio(
     help="The models differ in how the hospitalisation probability ψ is constructed.",
 )
 
+POINT_KEY = {"sim_m1": "sim_m1", "sim_m2": "sim_m2", "age_nocorr": "age_nocorr", "age_3b": "age_point"}
+BAYES_KEY = {"sim_m1": "sim_m1_bayes", "sim_m2": "sim_m2_bayes",
+             "age_nocorr": "age_nocorr_bayes", "age_3b": "age_bayes"}
+
 model_key = None
-if model_choice in ("sim_m1", "sim_m2", "age_nocorr"):
-    model_key = model_choice
-elif model_choice == "age_3b":
+if model_choice is not None:
     bayes_choice = sb.radio(
         "Fitting method",
         ["Point estimate (least squares)", "95% credible bands (Bayesian MCMC)"],
@@ -146,9 +149,9 @@ elif model_choice == "age_3b":
         ),
     )
     if bayes_choice == "Point estimate (least squares)":
-        model_key = "age_point"
+        model_key = POINT_KEY[model_choice]
     elif bayes_choice == "95% credible bands (Bayesian MCMC)":
-        model_key = "age_bayes"
+        model_key = BAYES_KEY[model_choice]
 
 run_clicked = sb.button(
     "Run model fitting",
@@ -299,7 +302,7 @@ def j_table_bayes(fit: pd.DataFrame) -> pd.DataFrame:
     })
 
 
-def bayes_model_comparison(fit: pd.DataFrame) -> pd.DataFrame:
+def bayes_model_comparison(fit: pd.DataFrame, model_key: str) -> pd.DataFrame:
     summ = load_summary()
     rows = [
         ("Model 1 — constant", "sim_m1"),
@@ -308,9 +311,10 @@ def bayes_model_comparison(fit: pd.DataFrame) -> pd.DataFrame:
         ("Model 3b — age-stratified, with coupling (least squares)", "age_point"),
     ]
     comp = [{"Model": lbl, "J (total)": round(summ.loc[k, "J_total"], 1)} for lbl, k in rows]
-    comp.append({"Model": "Model 3b — Bayesian, at posterior-mean parameters",
+    _, label = BAYES_MODELS[model_key]
+    comp.append({"Model": f"{label} — Bayesian, at posterior-mean parameters",
                  "J (total)": round(fit.loc["J_post_mean_params", "total"], 1)})
-    comp.append({"Model": "Model 3b — Bayesian, posterior mean of J",
+    comp.append({"Model": f"{label} — Bayesian, posterior mean of J",
                  "J (total)": round(fit.loc["J_draws_mean", "total"], 1)})
     return pd.DataFrame(comp)
 
@@ -431,16 +435,16 @@ def render_results_tab():
         )
         return
 
-    result = load_age_bayes() if model_key == "age_bayes" else load_deterministic(model_key)
+    result = load_bayes(model_key) if model_key in BAYES_MODELS else load_deterministic(model_key)
     sim_col = "point_est" if result.has_bands else "sim"
     traj = in_window(result.trajectories)
     rt = in_window(load_rt(model_key))
 
     # Tables needed by several views and by the download.
     if result.has_bands:
-        fit, _ = load_age_bayes_fit()
+        fit, _ = load_bayes_fit(model_key)
         j_table = j_table_bayes(fit)
-        comp = bayes_model_comparison(fit)
+        comp = bayes_model_comparison(fit, model_key)
     else:
         fit, comp = None, None
         j_table = j_table_deterministic(result.summary) if result.summary is not None else None
@@ -459,7 +463,7 @@ def render_results_tab():
                                label="Rₜ = β(t)(1/γ_C + 1/γ_I) · S(t)/N")
     hist_panels = []
     if result.has_bands:
-        draws = load_age_bayes_draws()
+        draws = load_bayes_draws(model_key)
         pinfo = result.params.set_index("name")
         hist_panels = [
             charts.histogram_panel(draws[n], param_symbol(n), pinfo.loc[n, "post_mean"],

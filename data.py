@@ -30,6 +30,19 @@ MODEL_LABELS = {
     "age_nocorr": "Model 3a — age-stratified ψ, without testing-volume coupling (point estimate)",
     "age_point": "Model 3b — age-stratified ψ, with testing-volume coupling (point estimate)",
     "age_bayes": "Model 3b — age-stratified ψ, with testing-volume coupling (Bayesian posterior, with 95% credible and predictive bands)",
+    "sim_m1_bayes": "Model 1 — constant (Bayesian posterior, with 95% credible and predictive bands)",
+    "sim_m2_bayes": "Model 2 — piecewise ψ (Bayesian posterior, with 95% credible and predictive bands)",
+    "age_nocorr_bayes": "Model 3a — age-stratified ψ, without testing-volume coupling "
+                        "(Bayesian posterior, with 95% credible and predictive bands)",
+}
+
+# Bayesian model keys -> the deterministic point-estimate key they pair with,
+# and a short label used in cross-model comparisons.
+BAYES_MODELS = {
+    "sim_m1_bayes": ("sim_m1", "Model 1"),
+    "sim_m2_bayes": ("sim_m2", "Model 2"),
+    "age_nocorr_bayes": ("age_nocorr", "Model 3a"),
+    "age_bayes": ("age_point", "Model 3b"),
 }
 
 # Shown in the sidebar right after the age-stratified variant is picked,
@@ -94,26 +107,39 @@ def load_deterministic(key: str) -> FitResult:
 
 
 @st.cache_data(ttl=600)
-def load_age_bayes() -> FitResult:
-    traj = pd.read_csv(DATA_DIR / "age_bayes_bands.csv", parse_dates=["date"])
-    params = pd.read_csv(DATA_DIR / "age_bayes_params.csv")
-    return FitResult(key="age_bayes", label=MODEL_LABELS["age_bayes"], trajectories=traj,
+def load_bayes(model_key: str) -> FitResult:
+    """Any Bayesian model variant (model_key in BAYES_MODELS, e.g. 'age_bayes',
+    'sim_m1_bayes'): 95% credible and posterior-predictive bands, from a
+    3x100,000-iteration DRAM run (pilot-tuned, pooled, first half of each
+    chain discarded) -- same schema and methodology as the age model's."""
+    traj = pd.read_csv(DATA_DIR / f"{model_key}_bands.csv", parse_dates=["date"])
+    params = pd.read_csv(DATA_DIR / f"{model_key}_params.csv")
+    return FitResult(key=model_key, label=MODEL_LABELS[model_key], trajectories=traj,
                       params=params, summary=None, has_bands=True)
 
 
 @st.cache_data(ttl=600)
-def load_age_bayes_fit() -> tuple[pd.DataFrame, pd.Series]:
+def load_bayes_fit(model_key: str) -> tuple[pd.DataFrame, pd.Series]:
     """Posterior fit quality: J per series (at the posterior-mean parameters and
     over the 500 band draws) and the posterior of the noise variance sigma^2."""
-    fit = pd.read_csv(DATA_DIR / "age_bayes_fit.csv").set_index("quantity")
-    sigma2 = pd.read_csv(DATA_DIR / "age_bayes_sigma2.csv").iloc[0]
+    fit = pd.read_csv(DATA_DIR / f"{model_key}_fit.csv").set_index("quantity")
+    sigma2 = pd.read_csv(DATA_DIR / f"{model_key}_sigma2.csv").iloc[0]
     return fit, sigma2
 
 
 @st.cache_data(ttl=600)
-def load_age_bayes_draws() -> pd.DataFrame:
+def load_bayes_draws(model_key: str) -> pd.DataFrame:
     """5000 posterior draws, evenly spaced over the pooled chains (one column per parameter)."""
-    return pd.read_csv(DATA_DIR / "age_bayes_draws.csv")
+    return pd.read_csv(DATA_DIR / f"{model_key}_draws.csv")
+
+
+@st.cache_data(ttl=600)
+def load_age_covariates() -> pd.DataFrame:
+    """Daily covariates behind Model 3b's psi(t), independent of any posterior
+    draw: NT (7-day test-volume sum) and the age-group mix of that day's new
+    confirmed cases (p_0_49..p_70plus). Lets psi(t) be reconstructed for any
+    (psi_base, F_test) pair, e.g. for each posterior draw at runtime."""
+    return pd.read_csv(DATA_DIR / "age_covariates.csv").sort_values("t").reset_index(drop=True)
 
 
 @st.cache_data(ttl=600)
