@@ -1,9 +1,10 @@
-"""'Simulate scenarios' mode: counterfactual lockdown timing.
+"""'Transmission scenarios' mode: a counterfactual second lockdown.
 
-The trajectories are precomputed offline (Tese/D2/d2_app_scenarios_export.m)
-with the same ODE solver as the fits: each model keeps its fitted
-parameters and only the day on which beta switches is moved by +/-14 days.
-Only simulated values are shown here, never observed data.
+The fitted second state of emergency (beta4 -> beta5 on 06/11/2020) is
+replaced by a lockdown whose start date and duration the user chooses,
+during which R_t is cut by a given percentage (40% by default). The model
+is re-integrated at runtime (simulator.py) with each model's fitted
+parameters. Only simulated values are shown here, never observed data.
 """
 import io
 
@@ -11,7 +12,9 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import streamlit as st
 
-from data import DATA_DIR
+from simulator import (
+    DAY0, FITTED_CP, N_DAYS, fitted_schedule, load_inputs, lockdown_schedule, simulate,
+)
 
 SCN_SERIES = {
     "cases": "Daily cases",
@@ -31,61 +34,41 @@ SCN_MODELS = {
     "Model 3b — age-stratified ψ, with testing-volume coupling": "age_point",
 }
 MODEL_SHORT = {"sim_m1": "Model 1", "sim_m2": "Model 2", "age_nocorr": "Model 3a", "age_point": "Model 3b"}
-WAVES = {
-    "First wave — first lockdown (30/03/2020)": ("wave1", 0),
-    "Second wave — second state of emergency (06/11/2020)": ("wave2", 3),
-}
-TIMINGS = {
-    "Baseline (as fitted)": None,
-    "2 weeks earlier": "earlier",
-    "2 weeks later": "later",
-}
-FITTED_CP = [29, 70, 197, 250]   # model days of the fitted beta switches
-DAY0 = pd.Timestamp("2020-03-01")
+SCENARIO_TYPES = ["Baseline (as fitted)", "Second lockdown: Rₜ reduction"]
 COMPARE_COLORS = plt.rcParams["axes.prop_cycle"].by_key()["color"]
 
-
-@st.cache_data(ttl=600)
-def load_scenarios() -> pd.DataFrame:
-    return pd.read_csv(DATA_DIR / "scenarios.csv", parse_dates=["date"])
+FITTED_SWITCH = FITTED_CP[3]            # day 250 = 06/11/2020
+EARLIEST_START = FITTED_CP[2] + 1       # after the 14/09/2020 changepoint
 
 
-def scenario_key(wave: str, timing) -> str:
-    return "baseline" if timing is None else f"{wave}_{timing}"
+def day_to_date(day: int) -> pd.Timestamp:
+    return DAY0 + pd.Timedelta(days=int(day))
 
 
-def scenario_label(scn: str) -> str:
-    if scn == "baseline":
-        return "Baseline (as fitted)"
-    wave, timing = scn.split("_")
-    k = 0 if wave == "wave1" else 3
-    day = FITTED_CP[k] + (-14 if timing == "earlier" else 14)
-    what = "First lockdown" if wave == "wave1" else "Second state of emergency"
-    return f"{what} 2 weeks {timing} ({DAY0 + pd.Timedelta(days=day):%d/%m/%Y})"
-
-
-def switch_days(scn: str) -> list:
-    cps = list(FITTED_CP)
-    if scn != "baseline":
-        wave, timing = scn.split("_")
-        k = 0 if wave == "wave1" else 3
-        cps[k] += -14 if timing == "earlier" else 14
-    return cps
+def date_to_day(d) -> int:
+    return int((pd.Timestamp(d) - DAY0).days)
 
 
 def _window(df, start, end):
     return df[(df["date"] >= start) & (df["date"] <= end)]
 
 
-def _mark_switches(ax, scn, start, end):
-    for k, (day, fitted) in enumerate(zip(switch_days(scn), FITTED_CP)):
-        d = DAY0 + pd.Timedelta(days=day)
+def _mark(ax, scn, start, end):
+    """Dashed: changepoints in use. Dotted grey: the fitted second switch when
+    it was replaced. Shaded: the counterfactual lockdown."""
+    used = FITTED_CP if scn is None else FITTED_CP[:3]
+    for day in used:
+        d = day_to_date(day)
         if start <= d <= end:
             ax.axvline(d, color="0.25", ls="--", lw=1.4)
-        if day != fitted:
-            d0 = DAY0 + pd.Timedelta(days=fitted)
-            if start <= d0 <= end:
-                ax.axvline(d0, color="0.65", ls=":", lw=1.2)
+    if scn is not None:
+        d = day_to_date(FITTED_SWITCH)
+        if start <= d <= end:
+            ax.axvline(d, color="0.6", ls=":", lw=1.3)
+        a = max(day_to_date(scn["start"]), start)
+        b = min(day_to_date(scn["start"] + scn["duration"]), end)
+        if a < b:
+            ax.axvspan(a, b, color="tab:red", alpha=0.10, lw=0)
 
 
 def _metrics(df: pd.DataFrame) -> dict:
@@ -110,57 +93,84 @@ def _png(fig) -> bytes:
     return buf.getvalue()
 
 
+def scenario_title(model_key, scn) -> str:
+    if scn is None:
+        return f"{MODEL_SHORT[model_key]} · Baseline (as fitted)"
+    return (f"{MODEL_SHORT[model_key]} · Lockdown from {day_to_date(scn['start']):%d/%m/%Y}, "
+            f"{scn['duration']} days, Rₜ −{scn['reduction']}%")
+
+
 def render_scenarios(sb):
     """Draws the sidebar choices and the main page of the scenario mode."""
-    sc_dates = load_scenarios()["date"]
-    d_min, d_max = sc_dates.min().date(), sc_dates.max().date()
     if "saved_scenarios" not in st.session_state:
         st.session_state.saved_scenarios = {}
     saved = st.session_state.saved_scenarios
+    d_min, d_max = DAY0.date(), day_to_date(N_DAYS - 1).date()
 
     sb.subheader("1. Pick a model")
     model_label = sb.radio("Model", list(SCN_MODELS), key="scn_model",
                            label_visibility="collapsed")
-    sb.subheader("2. Choose the scenario")
-    timing_label = sb.radio("Lockdown timing", list(TIMINGS), key="scn_timing")
-    wave_label = None
-    if TIMINGS[timing_label] is not None:
-        wave_label = sb.radio("Which lockdown", list(WAVES), key="scn_wave")
+    model_key = SCN_MODELS[model_label]
+
+    sb.subheader("2. Second lockdown")
+    sb.markdown(f"Fitted changepoint: **{day_to_date(FITTED_SWITCH):%d/%m/%Y}** "
+                "(second state of emergency, β₄ → β₅).")
+    scn_type = sb.radio("Scenario", SCENARIO_TYPES, key="scn_type")
+    scn = None
+    if scn_type == SCENARIO_TYPES[1]:
+        start_date = sb.date_input(
+            "Lockdown start date", value=day_to_date(FITTED_SWITCH).date(),
+            min_value=day_to_date(EARLIEST_START).date(),
+            max_value=day_to_date(N_DAYS - 2).date(),
+            format="DD/MM/YYYY", key="scn_start",
+            help="The fitted changepoint is 06/11/2020: pick an earlier or later "
+                 "date to move the lockdown.",
+        )
+        start_day = date_to_day(start_date)
+        max_dur = N_DAYS - 1 - start_day
+        duration = sb.slider(
+            "Duration of the Rₜ reduction (days)", min_value=1, max_value=max_dur,
+            value=min(max_dur, N_DAYS - 1 - FITTED_SWITCH), key="scn_duration",
+            help="How long, from the start date, Rₜ stays reduced. The default "
+                 "lasts until the end of the simulated period (31/12/2020).",
+        )
+        reduction = sb.slider("Rₜ reduction (%)", min_value=5, max_value=90, value=40,
+                              step=5, key="scn_reduction")
+        scn = {"start": start_day, "duration": int(duration), "reduction": int(reduction)}
+        end_day = min(start_day + duration, N_DAYS - 1)
+        sb.caption(f"Rₜ reduced from {day_to_date(start_day):%d/%m/%Y} to "
+                   f"{day_to_date(end_day):%d/%m/%Y}.")
+
     sb.subheader("3. Period")
     period = sb.slider(
-        "Period to simulate", min_value=d_min, max_value=d_max,
-        value=(d_min, d_max), format="DD/MM/YYYY", key="scn_period",
-        label_visibility="collapsed",
+        "Period to show", min_value=d_min, max_value=d_max, value=(d_min, d_max),
+        format="DD/MM/YYYY", key="scn_period", label_visibility="collapsed",
     )
     sb.markdown("")
     run = sb.button("Run Scenario Simulation", use_container_width=True)
 
-    model_key = SCN_MODELS[model_label]
-    scn = scenario_key(WAVES[wave_label][0] if wave_label else None, TIMINGS[timing_label])
-    config = (model_key, scn, period)
+    config = (model_key, None if scn is None else tuple(sorted(scn.items())), period)
     if run:
         st.session_state.scn_config = config
 
-    st.header("Simulate scenarios: timing of the lockdowns")
+    st.header("Transmission scenarios: the second lockdown")
     st.markdown(
-        "What if a lockdown had started earlier or later? Each model keeps the "
-        "parameters fitted to the data, and only the day on which the "
-        "transmission rate β switches is moved by two weeks:\n"
-        "- **First wave**: the first lockdown (fitted switch on 30/03/2020). "
-        "**2 weeks earlier**: β₂ starts on 16/03/2020. **2 weeks later**: β₁ "
-        "lasts until 13/04/2020.\n"
-        "- **Second wave**: the second state of emergency (fitted switch on "
-        "06/11/2020). **2 weeks earlier**: β₅ starts on 23/10/2020. **2 weeks "
-        "later**: β₄ lasts until 20/11/2020.\n\n"
-        "Everything else (hospitalisation probabilities, the other switch "
-        "dates, the initial conditions) stays as fitted. All the results are "
-        "simulated trajectories. Run a simulation, save it (for example as a "
-        "baseline), run and save other scenarios, and then compare them in "
-        "**Compare**."
+        "What if the second lockdown had started on a different date, or lasted "
+        "a different time? In the fitted models, transmission switches from β₄ to "
+        "β₅ on **06/11/2020** (second state of emergency). In a scenario this "
+        "switch is removed, and instead:\n"
+        "- up to the chosen **start date**, transmission stays at the pre-lockdown "
+        "level β₄;\n"
+        "- from the start date, for the chosen **duration**, Rₜ is reduced by the "
+        "chosen percentage (**40%** by default), i.e. β = (1 − 0.40)·β₄;\n"
+        "- after that, transmission returns to β₄.\n\n"
+        "Everything before 14/09/2020 and all the other parameters stay as fitted. "
+        "The model is simulated again for each scenario; all the results are "
+        "simulated trajectories. Run a simulation, save it (for example the "
+        "baseline), run and save other scenarios, and compare them in **Compare**."
     )
 
     tab_results, tab_compare = st.tabs(["📊 Results", "⚖️ Compare"])
-
     with tab_results:
         cfg = st.session_state.get("scn_config")
         if cfg is None:
@@ -168,29 +178,42 @@ def render_scenarios(sb):
                     "press **Run Scenario Simulation**.")
         else:
             _render_results(cfg, config, saved)
-
     with tab_compare:
         _render_compare(saved)
 
 
+def _run(model_key, scn):
+    inp = load_inputs(model_key)
+    if scn is None:
+        sched = tuple(fitted_schedule(inp.betas))
+    else:
+        sched = lockdown_schedule(inp.betas, scn["start"], scn["duration"], scn["reduction"] / 100)
+    return simulate(inp, sched), inp
+
+
 def _render_results(cfg, current, saved):
-    model_key, scn, period = cfg
+    model_key, scn_items, period = cfg
+    scn = None if scn_items is None else dict(scn_items)
     start, end = pd.Timestamp(period[0]), pd.Timestamp(period[1])
     if cfg != current:
         st.warning("The selection in the menu has changed. Press **Run Scenario "
                    "Simulation** to update; the results below are for the last run.")
-    sc = load_scenarios()
-    df = sc[(sc["model"] == model_key) & (sc["scenario"] == scn)]
-    df = _window(df, start, end).reset_index(drop=True)
-    title = f"{MODEL_SHORT[model_key]} · {scenario_label(scn)}"
+    full, inp = _run(model_key, scn)
+    df = _window(full, start, end).reset_index(drop=True)
+    title = scenario_title(model_key, scn)
     st.subheader(title)
-    st.caption(f"Period: {start:%d/%m/%Y} – {end:%d/%m/%Y}. Dashed lines: the β "
-               "switch dates used in this scenario"
-               + ("; dotted grey line: the fitted date it replaces." if scn != "baseline" else "."))
+    b4, b5 = inp.betas[3], inp.betas[4]
+    st.caption(
+        f"Period: {start:%d/%m/%Y} – {end:%d/%m/%Y}. Dashed lines: changepoints in use"
+        + ("; dotted grey line: the fitted 06/11/2020 switch it replaces; shaded: the "
+           "lockdown with reduced Rₜ" if scn is not None else "")
+        + f". For reference, the fitted switch on 06/11/2020 reduced β by "
+        f"{100 * (1 - b5 / b4):.0f}% in this model (β₄ = {b4:.4f} → β₅ = {b5:.4f})."
+    )
 
     with st.container(border=True):
         c1, c2 = st.columns([3, 1])
-        name = c1.text_input("Name for this simulation", value=title, key="scn_save_name")
+        name = c1.text_input("Name for this simulation", value=title, key=f"scn_name_{title}")
         c2.markdown("<div style='height:1.75rem'></div>", unsafe_allow_html=True)
         if c2.button("💾 Save simulation", use_container_width=True):
             base, k = name.strip() or title, 2
@@ -205,12 +228,11 @@ def _render_results(cfg, current, saved):
     tab_plots, tab_metrics, tab_overlay = st.tabs(
         ["📈 Plots", "🔢 Epidemic metrics", "🔀 Overlay"]
     )
-
     with tab_plots:
         fig, axes = plt.subplots(2, 2, figsize=(10, 6.0))
         for ax, s in zip(axes.flat, ["cases", "ward", "icu", "deaths"]):
             ax.plot(df["date"], df[s], color=SCN_COLORS[s], lw=2)
-            _mark_switches(ax, scn, start, end)
+            _mark(ax, scn, start, end)
             ax.set_title(SCN_SERIES[s])
             ax.tick_params(axis="x", rotation=30)
         fig.tight_layout()
@@ -218,7 +240,7 @@ def _render_results(cfg, current, saved):
         fig_rt, ax = plt.subplots(figsize=(10, 3.4))
         ax.plot(df["date"], df["Rt"], color=SCN_COLORS["Rt"], lw=2)
         ax.axhline(1, color="black", lw=1, ls=":")
-        _mark_switches(ax, scn, start, end)
+        _mark(ax, scn, start, end)
         ax.set_title("Effective reproduction number Rₜ")
         ax.tick_params(axis="x", rotation=30)
         fig_rt.tight_layout()
@@ -270,7 +292,7 @@ def _render_overlay(df, scn, start, end):
         ax.tick_params(axis="y", colors=SCN_COLORS[s])
     if "Rₜ" in (left, right):
         (ax_l if left == "Rₜ" else ax_r).axhline(1, color="0.4", lw=1, ls=":")
-    _mark_switches(ax_l, scn, start, end)
+    _mark(ax_l, scn, start, end)
     ax_l.tick_params(axis="x", rotation=30)
     h1, l1 = ax_l.get_legend_handles_labels()
     h2, l2 = ax_r.get_legend_handles_labels()
@@ -313,6 +335,7 @@ def _render_compare(saved):
 
         rows = []
         ref = _metrics(saved[chosen[0]]["data"])
+        peak_col = "Highest Rₜ" if s == "Rt" else f"Peak {series_label}"
         for n in chosen:
             item = saved[n]
             m = _metrics(item["data"])
@@ -324,15 +347,14 @@ def _render_compare(saved):
                 "Total cases vs first (%)": round(100 * (m["Total confirmed cases"] / ref["Total confirmed cases"] - 1), 1),
                 "Total deaths": round(m["Total deaths"]),
                 "Total deaths vs first (%)": round(100 * (m["Total deaths"] / ref["Total deaths"] - 1), 1),
-                f"Peak {series_label}" if s != "Rt" else "Highest Rₜ":
-                    round(m[f"Peak {series_label}"]) if s != "Rt" else round(m["Highest Rₜ"], 2),
-                "Peak day": f"{(m[f'Peak {series_label} day'] if s != 'Rt' else m['Highest Rₜ day']):%d/%m/%Y}",
+                peak_col: round(m["Highest Rₜ"], 2) if s == "Rt" else round(m[peak_col]),
+                "Peak day": f"{m[peak_col + ' day']:%d/%m/%Y}",
             })
         st.markdown(f"**Summary** (differences relative to **{chosen[0]}**, the first one selected)")
         st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
 
         long = pd.concat(
-            [saved[n]["data"].drop(columns=["switch_day"], errors="ignore").assign(simulation=n)
+            [saved[n]["data"].drop(columns=["beta", "t"], errors="ignore").assign(simulation=n)
              for n in chosen], ignore_index=True,
         )
         c1, c2 = st.columns(2)

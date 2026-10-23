@@ -12,12 +12,13 @@ Only one mode is active at a time:
 
 1. **Estimate early dynamics**: the fitted models on the whole of 2020 (fixed time period).
 2. **Estimate partial early dynamics**: the same, with a selectable time period.
-3. **Simulate scenarios**: lockdown-timing counterfactuals. For a chosen model, the
-   first lockdown (first wave) or the second state of emergency (second wave) is
-   moved two weeks earlier or later, keeping every fitted parameter; only the day
-   on which β switches changes. Simulations can be saved and compared
-   (simulated trajectories only). Precomputed by `Tese/D2/d2_app_scenarios_export.m`
-   into `data/scenarios.csv`.
+3. **Transmission scenarios**: a counterfactual second lockdown. The fitted
+   second state of emergency (β₄ → β₅ on 06/11/2020) is replaced by a lockdown
+   with a chosen start date and duration, during which Rₜ is reduced by 40%
+   (adjustable); before and after it transmission stays at β₄. The model is
+   re-integrated in the app (`simulator.py`, a Python port of the thesis ODE,
+   with inputs from `Tese/D2/d2_app_sim_inputs_export.m`). Simulations can be
+   saved and compared (simulated trajectories only).
 4. **Model with vaccination**: not available yet (planned to build on Model 3b).
 
 ## Menu (left sidebar)
@@ -52,7 +53,8 @@ streamlit run app.py
 
 - `app.py` — Streamlit interface (the decision tree + plotting)
 - `data.py` — loads the precomputed results for each model variant
-- `scenarios.py` — the scenario mode (results, saving and comparing simulations)
+- `scenarios.py` — the transmission-scenario mode (results, saving and comparing simulations)
+- `simulator.py` — runtime ODE simulator used by the scenario mode
 - `data/*.csv` — precomputed trajectories, parameters, and fit quality (SSR, sum of squared log-residuals)
   for every model, generated from the thesis's `D2/` MATLAB pipeline
   (deterministic fits) and its mcmcstat/DRAM run (pilot + three pooled
