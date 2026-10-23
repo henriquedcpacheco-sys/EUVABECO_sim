@@ -165,14 +165,6 @@ def _run(model_key, scn_items):
     return simulate(inp, sched), inp
 
 
-def _delta(new, base, fmt="{:+.1f}%"):
-    """Relative change against the baseline, as text ("−12.3%"); None if undefined."""
-    if base == 0:
-        return None
-    change = 100 * (new / base - 1)
-    return "±0.0%" if abs(change) < 0.05 else fmt.format(change)
-
-
 def _render_results(cfg, current, saved):
     model_key, scn_items, period = cfg
     scn = None if scn_items is None else dict(scn_items)
@@ -183,9 +175,7 @@ def _render_results(cfg, current, saved):
                    icon=":material/sync_problem:")
     with st.spinner("Integrating the model…"):
         full, inp = _run(model_key, scn_items)
-        base_full = _run(model_key, None)[0] if scn is not None else None
     df = _window(full, start, end).reset_index(drop=True)
-    base = _window(base_full, start, end).reset_index(drop=True) if base_full is not None else None
     window = _scn_window(scn)
     title = scenario_title(model_key, scn)
 
@@ -197,23 +187,7 @@ def _render_results(cfg, current, saved):
         f"{100 * (1 - b5 / b4):.0f}% in this model (β₄ = {b4:.4f} → β₅ = {b5:.4f})."
     )
 
-    # Headline numbers, with the change against the fitted baseline.
     m = _metrics(df)
-    mb = _metrics(base) if base is not None else None
-    cards = [
-        ("Total confirmed cases", f"{m['Total confirmed cases']:,.0f}",
-         mb and _delta(m["Total confirmed cases"], mb["Total confirmed cases"])),
-        ("Total deaths", f"{m['Total deaths']:,.0f}",
-         mb and _delta(m["Total deaths"], mb["Total deaths"])),
-        ("Peak ICU occupancy", f"{m['Peak ICU']:,.0f}",
-         mb and _delta(m["Peak ICU"], mb["Peak ICU"])),
-        ("Peak ward occupancy", f"{m['Peak General ward']:,.0f}",
-         mb and _delta(m["Peak General ward"], mb["Peak General ward"])),
-    ]
-    cols = st.columns(4)
-    for col, (label, value, delta) in zip(cols, cards):
-        col.metric(label, value, delta=(f"{delta} vs baseline" if delta else None),
-                   delta_color="inverse", border=True)
 
     with st.container(border=True):
         c1, c2 = st.columns([3, 1], vertical_alignment="bottom")
@@ -264,17 +238,10 @@ def _render_results(cfg, current, saved):
             row = {"Series": SCN_SERIES[s],
                    "Peak day": f"{m[f'Peak {SCN_SERIES[s]} day']:%d/%m/%Y}",
                    "Peak value": round(m[f"Peak {SCN_SERIES[s]}"])}
-            if mb is not None:
-                row["Baseline peak day"] = f"{mb[f'Peak {SCN_SERIES[s]} day']:%d/%m/%Y}"
-                row["Baseline peak value"] = round(mb[f"Peak {SCN_SERIES[s]}"])
-                row["Change (%)"] = round(
-                    100 * (m[f"Peak {SCN_SERIES[s]}"] / mb[f"Peak {SCN_SERIES[s]}"] - 1), 1)
             rows.append(row)
         st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch",
                      column_config={
                          "Peak value": st.column_config.NumberColumn(format="localized"),
-                         "Baseline peak value": st.column_config.NumberColumn(format="localized"),
-                         "Change (%)": st.column_config.NumberColumn(format="%+.1f%%"),
                      })
 
     elif view == "Overlay":
