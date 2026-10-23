@@ -79,7 +79,7 @@ sb.header("Menu")
 MODES = [
     "1. Estimate early dynamics",
     "2. Estimate partial early dynamics",
-    "3. Simulate scenarios",
+    "3. Transmission scenarios",
     "4. Model with vaccination",
 ]
 sb.subheader("Simulator mode")
@@ -91,7 +91,7 @@ mode = sb.radio(
     captions=[
         "Whole of 2020, fixed time period",
         "Choose the time period",
-        "Lockdown timing: 2 weeks earlier or later",
+        "Second lockdown: date, duration, Rₜ −40%",
         "Not available yet",
     ],
 )
