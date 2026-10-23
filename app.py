@@ -306,7 +306,9 @@ if model_choice and model_choice.startswith("Model 3"):
 if model_key and st.session_state.get("simulated"):
     result = load_age_bayes() if model_key == "age_bayes" else load_deterministic(model_key)
     st.subheader(result.label)
-    tab_res, tab_met = st.tabs(["📈 Results: plots and errors", "🔢 Metrics"])
+    tab_res, tab_met, tab_ov = st.tabs(
+        ["📈 Results: plots and errors", "🔢 Metrics", "🔀 Overlay"]
+    )
 
     with tab_res:
 
@@ -639,6 +641,66 @@ if model_key and st.session_state.get("simulated"):
             ]),
         ], ignore_index=True)
 
+    with tab_ov:
+        st.markdown(
+            "Compare two simulated series on the same time axis, each with its "
+            "own y-axis, so that their different scales do not matter."
+        )
+        ov_sim = "point_est" if result.has_bands else "sim"
+        ov_traj = in_window(result.trajectories)
+        ov_rt = in_window(load_rt(model_key))
+        OV_SERIES = {
+            "Rₜ": ("Rt", "#2CA02C"),
+            "Daily cases": ("cases", SERIES_COLORS["cases"]),
+            "General ward": ("ward", SERIES_COLORS["ward"]),
+            "ICU": ("icu", SERIES_COLORS["icu"]),
+            "Daily deaths": ("deaths", SERIES_COLORS["deaths"]),
+        }
+        OV_PRESETS = {
+            "Rₜ vs Daily cases": ("Rₜ", "Daily cases"),
+            "Daily cases vs General ward": ("Daily cases", "General ward"),
+            "Daily cases vs Daily deaths": ("Daily cases", "Daily deaths"),
+            "Custom": None,
+        }
+        preset = st.radio(
+            "Quick selection", list(OV_PRESETS), horizontal=True, key="ov_preset"
+        )
+        if OV_PRESETS[preset] is None:
+            names = list(OV_SERIES)
+            col_l, col_r = st.columns(2)
+            left = col_l.selectbox("Left y-axis", names, index=1, key="ov_left")
+            right = col_r.selectbox("Right y-axis", names, index=4, key="ov_right")
+        else:
+            left, right = OV_PRESETS[preset]
+
+        def ov_data(name):
+            key, _ = OV_SERIES[name]
+            if key == "Rt":
+                return ov_rt["date"], ov_rt["Rt"]
+            d = ov_traj[ov_traj["series"] == key]
+            return d["date"], d[ov_sim]
+
+        fig_ov, ax_l = plt.subplots(figsize=(10, 4.2))
+        ax_r = ax_l.twinx()
+        for ax, name, ls in [(ax_l, left, "-"), (ax_r, right, "--")]:
+            x, y = ov_data(name)
+            color = OV_SERIES[name][1]
+            ax.plot(x, y, color=color, lw=2, ls=ls, label=name)
+            ax.set_ylabel(name, color=color)
+            ax.tick_params(axis="y", colors=color)
+        if "Rₜ" in (left, right):
+            (ax_l if left == "Rₜ" else ax_r).axhline(1, color="0.4", lw=1, ls=":")
+        mark_changepoints(ax_l)
+        ax_l.tick_params(axis="x", rotation=30)
+        h1, l1 = ax_l.get_legend_handles_labels()
+        h2, l2 = ax_r.get_legend_handles_labels()
+        ax_l.legend(h1 + h2, l1 + l2, fontsize=8, loc="upper left")
+        ax_l.set_title(f"{left} (left) vs {right} (right) — simulated")
+        fig_ov.tight_layout()
+        st.pyplot(fig_ov)
+        if result.has_bands:
+            st.caption("Simulated series: the model at the posterior-mean parameters (red line).")
+
     zip_buf = io.BytesIO()
     with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("all_models_comparison.csv", comp_all.to_csv())
@@ -654,6 +716,7 @@ if model_key and st.session_state.get("simulated"):
             ("fitted_model.png", fig),
             ("weekly_residual_breakdown.png", fig_resid),
             ("effective_reproduction_number.png", fig_rt),
+            ("overlay.png", fig_ov),
         ] + ([("posterior_histograms.png", fig_hist)] if fig_hist is not None else []):
             buf = io.BytesIO()
             f.savefig(buf, format="png", dpi=200, bbox_inches="tight")
