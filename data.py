@@ -272,7 +272,7 @@ def build_comparison_table() -> pd.DataFrame:
     one column per model (NaN where a parameter is not in that model).
     The Bayesian column uses the posterior means, and J at those values."""
     summary = load_summary()
-    fit, _ = load_age_bayes_fit()
+    fit, _ = load_bayes_fit("age_bayes")
     cols = {}
     for label, key in COMPARISON_MODELS:
         if key == "age_bayes":

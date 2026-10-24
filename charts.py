@@ -87,13 +87,15 @@ def changepoint_rules(cps: list[tuple[pd.Timestamp, str]], start, end):
 
 
 def window_band(window, start, end):
-    """Shaded interval (the extra Rt reduction of a scenario)."""
+    """Shaded interval where a scenario differs from the fitted baseline
+    (window = (start, end, label))."""
     if window is None:
         return None
-    a, b = max(window[0], start), min(window[1], end)
+    a, b, label = window
+    a, b = max(a, start), min(b, end)
     if a >= b:
         return None
-    d = pd.DataFrame({"a": [a], "b": [b], "label": ["Extra Rₜ reduction"]})
+    d = pd.DataFrame({"a": [a], "b": [b], "label": [label]})
     return alt.Chart(d).mark_rect(color=WINDOW_COLOR, opacity=0.12).encode(
         x="a:T", x2="b:T", tooltip=alt.Tooltip("label:N", title=""),
     )

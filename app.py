@@ -76,7 +76,7 @@ mode = sb.radio(
     captions=[
         "Whole of 2020, fixed time period",
         "Choose the time period",
-        "Extra/earlier lockdown: any start date and duration, Rₜ reduced on top of the baseline",
+        "Extra/earlier lockdown, or a later school reopening -- free timing, on top of the baseline",
         "Not available yet",
     ],
 )
@@ -214,7 +214,7 @@ def render_data_tab():
         ("dot", charts.SERIES_COLORS["ward"], "Ward"),
         ("dot", charts.SERIES_COLORS["icu"], "ICU"),
         ("dot", charts.SERIES_COLORS["deaths"], "Deaths"),
-        ("rule", charts.RULE_COLOR, "Fixed NPI date (hover for the event)"),
+        ("rule", charts.RULE_COLOR, "Fixed NPI date"),
     ]), unsafe_allow_html=True)
     panel_grid([
         charts.observed_panel(series_frame(obs_all, s), s, SERIES_LABELS[s],
@@ -250,7 +250,7 @@ def render_params_tab():
     )
     col_fixed, col_est = st.columns(2, gap="large")
     with col_fixed:
-        st.markdown("##### :material/lock: Fixed (from the literature)")
+        st.markdown("##### :material/lock: Fixed")
         st.dataframe(pd.DataFrame(FIXED_PARAMS, columns=["Parameter", "Meaning"]),
                      hide_index=True, width="stretch")
     with col_est:

@@ -1,21 +1,34 @@
-"""'Transmission scenarios' mode: a counterfactual extra/earlier lockdown.
+"""'Transmission scenarios' mode: two alternative counterfactuals, chosen
+with a single switch -- an extra/earlier lockdown, or a later school
+reopening.
 
-On top of the fitted transmission (all segments kept, including the
-06/11/2020 switch), R_t is cut by a given percentage (40% by default) for a
-window whose start date and duration the user chooses freely, as long as it
-does not overlap either of the two real lockdown periods already in the
-fitted schedule (the spring 2020 lockdown, day 29-70, and the Nov 2020
-tightening, day 250 to the end of the horizon) -- those are left as fitted,
-since an "extra" lockdown on top of an already-modelled one is not a
-meaningful counterfactual. The model is re-integrated at runtime
-(simulator.py) with each model's fitted parameters. Only simulated values
-are shown here, never observed data.
+Extra lockdown: on top of the fitted transmission (all segments kept,
+including the 06/11/2020 switch), R_t is cut by a given percentage (40% by
+default) for a window whose start date and duration the user chooses
+freely, as long as it does not overlap either of the two real lockdown
+periods already in the fitted schedule (the spring 2020 lockdown, day
+29-70, and the Nov 2020 tightening, day 250 to the end of the horizon) --
+those are left as fitted, since an "extra" lockdown on top of an
+already-modelled one is not a meaningful counterfactual.
 
-For Model 3b only, a second, explicitly opt-in computation re-integrates
-the same scenario across 500 posterior draws (simulator.simulate_draws) to
-report outcomes (e.g. deaths averted) with a 95% credible interval instead
-of a single number -- left behind a button since it costs a few seconds,
-rather than run on every rerun.
+Later school reopening: the fitted switch on 14/09/2020 (when beta steps up
+from the summer level to the post-reopening level) is pushed later by a
+number of days the user chooses freely, as long as it does not reach the
+next real changepoint (the Nov 2020 tightening) -- same reasoning as the
+lockdown's non-overlap rule, just one-sided since there is only one later
+changepoint to avoid.
+
+Either way the model is re-integrated at runtime (simulator.py) with each
+model's fitted parameters. Only simulated values are shown here, never
+observed data.
+
+For Model 3b only, an opt-in checkbox re-integrates the baseline (no
+scenario) across 500 posterior draws (simulator.simulate_draws) to shade
+a 95% predictive band on the plots -- the same method, including the
+residual-autocorrelation (effective sample size) correction to the
+observation noise, as the Bayesian bands shown for Model 3b elsewhere in
+the app. Left opt-in since it costs a few seconds, rather than run on
+every rerun.
 """
 import numpy as np
 import pandas as pd
@@ -24,7 +37,7 @@ import streamlit as st
 import charts
 from simulator import (
     DAY0, FITTED_CP, N_DAYS, fitted_schedule, load_inputs, lockdown_schedule, simulate,
-    simulate_draws,
+    simulate_draws, school_reopening_schedule,
 )
 from ui import CHANGEPOINTS, empty_state, panel_grid
 
@@ -42,7 +55,7 @@ SCN_MODELS = {
     "age_point": ("Model 3b — age-stratified ψ", "With testing-volume coupling"),
 }
 MODEL_SHORT = {"sim_m1": "Model 1", "sim_m2": "Model 2", "age_nocorr": "Model 3a", "age_point": "Model 3b"}
-SCENARIO_TYPES = ["Baseline", "Extra lockdown transmission (Rₜ)"]
+SCENARIO_TYPES = ["Baseline", "Extra lockdown transmission (Rₜ)", "Later school reopening"]
 N_UNCERTAINTY_DRAWS = 500
 
 # The two real lockdowns already in the fitted schedule -- an extra lockdown
@@ -52,6 +65,14 @@ FREE_ZONES = [
     ("Before the spring lockdown", 0, FITTED_CP[0]),
     ("Between the two lockdowns", FITTED_CP[1], FITTED_CP[3]),
 ]
+
+# The real back-to-school changepoint (14/09/2020) can be pushed later, but
+# not as far as the next real changepoint, the Nov 2020 tightening -- leave
+# at least 1 day of the post-reopening regime, same non-overlap reasoning
+# as the lockdown's free zones.
+SCHOOL_CP = FITTED_CP[2]
+NEXT_CP = FITTED_CP[3]
+MAX_SCHOOL_DELAY = NEXT_CP - SCHOOL_CP - 1
 
 
 def day_to_date(day: int) -> pd.Timestamp:
@@ -69,7 +90,11 @@ def _window(df, start, end):
 def _scn_window(scn):
     if scn is None:
         return None
-    return (day_to_date(scn["start"]), day_to_date(scn["start"] + scn["duration"]))
+    if scn["kind"] == "lockdown":
+        return (day_to_date(scn["start"]), day_to_date(scn["start"] + scn["duration"]),
+                "Extra Rₜ reduction")
+    return (day_to_date(SCHOOL_CP), day_to_date(SCHOOL_CP + scn["delay"]),
+            "School reopening delayed")
 
 
 def _metrics(df: pd.DataFrame) -> dict:
@@ -91,8 +116,11 @@ def _metrics(df: pd.DataFrame) -> dict:
 def scenario_title(model_key, scn) -> str:
     if scn is None:
         return f"{MODEL_SHORT[model_key]} · Baseline"
-    return (f"{MODEL_SHORT[model_key]} · Extra lockdown from {day_to_date(scn['start']):%d/%m/%Y}, "
-            f"{scn['duration']} days, Rₜ −{scn['reduction']}%")
+    if scn["kind"] == "lockdown":
+        return (f"{MODEL_SHORT[model_key]} · Extra lockdown from {day_to_date(scn['start']):%d/%m/%Y}, "
+                f"{scn['duration']} days, Rₜ −{scn['reduction']}%")
+    return (f"{MODEL_SHORT[model_key]} · School reopening delayed to "
+            f"{day_to_date(SCHOOL_CP + scn['delay']):%d/%m/%Y} ({scn['delay']} days later)")
 
 
 def render_scenarios(sb):
@@ -108,20 +136,22 @@ def render_scenarios(sb):
         captions=[v[1] for v in SCN_MODELS.values()],
     )
 
-    sb.markdown("**Extra lockdown**")
-    sb.caption(
-        "The two real lockdowns stay as fitted: spring 2020 "
-        f"(**{day_to_date(FITTED_CP[0]):%d/%m/%Y} – {day_to_date(FITTED_CP[1]):%d/%m/%Y}**) "
-        f"and the Nov 2020 tightening (from **{day_to_date(FITTED_CP[3]):%d/%m/%Y}**). "
-        "Place the extra lockdown anywhere else, for any duration."
-    )
+    sb.markdown("**Scenario**")
     scn_type = sb.segmented_control(
         "Scenario", SCENARIO_TYPES, default=SCENARIO_TYPES[1], required=True,
-        key="scn_type", format_func=lambda s: "Baseline" if s == SCENARIO_TYPES[0]
-        else "Extra lockdown", label_visibility="collapsed",
+        key="scn_type", format_func=lambda s: {
+            SCENARIO_TYPES[0]: "Baseline", SCENARIO_TYPES[1]: "Extra lockdown",
+            SCENARIO_TYPES[2]: "Later reopening",
+        }[s], label_visibility="collapsed",
     )
     scn = None
     if scn_type == SCENARIO_TYPES[1]:
+        sb.caption(
+            "The two real lockdowns stay as fitted: spring 2020 "
+            f"(**{day_to_date(FITTED_CP[0]):%d/%m/%Y} – {day_to_date(FITTED_CP[1]):%d/%m/%Y}**) "
+            f"and the Nov 2020 tightening (from **{day_to_date(FITTED_CP[3]):%d/%m/%Y}**). "
+            "Place the extra lockdown anywhere else, for any duration."
+        )
         zone_label = sb.radio(
             "When", [z[0] for z in FREE_ZONES], key="scn_zone", horizontal=False,
             help="Which gap, between or around the two real lockdowns, to place "
@@ -152,16 +182,48 @@ def render_scenarios(sb):
         reduction = sb.slider("Rₜ reduction (%)", min_value=5, max_value=90, value=40,
                               step=5, key="scn_reduction",
                               help="Reduction relative to the baseline Rₜ, inside the window.")
-        scn = {"start": start_day, "duration": int(duration), "reduction": int(reduction)}
+        scn = {"kind": "lockdown", "start": start_day, "duration": int(duration),
+               "reduction": int(reduction)}
         end_day = min(start_day + duration, N_DAYS - 1)
         sb.caption(f"Rₜ reduced from {day_to_date(start_day):%d/%m/%Y} to "
                    f"{day_to_date(end_day):%d/%m/%Y}.")
+    elif scn_type == SCENARIO_TYPES[2]:
+        sb.caption(
+            f"Schools actually reopened on **{day_to_date(SCHOOL_CP):%d/%m/%Y}**, when β "
+            "steps up from the lower summer level to the higher post-reopening level. Push "
+            "that switch later -- as long as it doesn't reach the next real changepoint, "
+            f"the Nov 2020 tightening on **{day_to_date(NEXT_CP):%d/%m/%Y}**."
+        )
+        delay = sb.slider(
+            "Delay school reopening by (days)", min_value=1, max_value=MAX_SCHOOL_DELAY,
+            value=min(21, MAX_SCHOOL_DELAY), key="scn_school_delay",
+            help="How many days later than the real date β switches to the "
+                 "post-reopening level -- capped so it doesn't reach the Nov 2020 tightening.",
+        )
+        scn = {"kind": "school_delay", "delay": int(delay)}
+        sb.caption(f"Reopening moved from {day_to_date(SCHOOL_CP):%d/%m/%Y} to "
+                   f"{day_to_date(SCHOOL_CP + delay):%d/%m/%Y}.")
     else:
-        sb.caption("The fitted model as it is, with no extra reduction.")
+        sb.caption("The fitted model as it is, with no counterfactual change.")
 
     period = sb.slider(
         "Period to show", min_value=d_min, max_value=d_max, value=(d_min, d_max),
         format="DD/MM/YYYY", key="scn_period",
+    )
+
+    # Predictive band: only for the fitted simulation itself (no scenario
+    # configured), and only drawn on the Plots view -- not for either
+    # counterfactual scenario, which stay point-estimate only.
+    bands_available = model_key == "age_point" and scn is None
+    sb.checkbox(
+        f"95% predictive band ({N_UNCERTAINTY_DRAWS} posterior draws)",
+        key="scn_bands_on", disabled=not bands_available,
+        help="Model 3b only, baseline only. Re-integrates across "
+             f"{N_UNCERTAINTY_DRAWS} posterior draws and adds the fitted observation "
+             "noise (corrected for residual autocorrelation, i.e. on the effective "
+             "sample size, not the raw day count) -- a few seconds the first time, "
+             "then cached. Same method as the Bayesian bands shown for Model 3b "
+             "elsewhere in the app.",
     )
     run = sb.button("Run scenario simulation", type="primary", icon=":material/play_arrow:",
                     width="stretch")
@@ -169,19 +231,6 @@ def render_scenarios(sb):
     config = (model_key, None if scn is None else tuple(sorted(scn.items())), period)
     if run:
         st.session_state.scn_config = config
-
-    # Credible bands: only for the fitted simulation itself (no extra lockdown
-    # configured), and only drawn on the Plots view -- not for the
-    # counterfactual lockdown scenarios, which stay point-estimate only.
-    if model_key == "age_point" and scn is None:
-        if sb.button(
-            f"Compute credible bands ({N_UNCERTAINTY_DRAWS} posterior draws)",
-            icon=":material/show_chart:", width="stretch",
-            help="Model 3b only, baseline only. Re-integrates across "
-                 f"{N_UNCERTAINTY_DRAWS} posterior draws (a few seconds) to shade a "
-                 "95% credible band on the plots below.",
-        ):
-            st.session_state.scn_bands_on = True
 
     tab_results, tab_compare = st.tabs(
         [":material/query_stats: Results", ":material/compare_arrows: Compare"]
@@ -192,9 +241,10 @@ def render_scenarios(sb):
             empty_state(
                 ":material/arrow_back:",
                 "Set up a scenario in the sidebar",
-                "Choose a model and, for an extra lockdown, its start date, duration and "
-                "Rₜ reduction. Then press **Run scenario simulation**. Save the results and open "
-                "**Compare** to set them against the baseline.",
+                "Choose a model and a scenario -- an extra lockdown (start date, duration, "
+                "Rₜ reduction) or a later school reopening (delay). Then press **Run scenario "
+                "simulation**. Save the results and open **Compare** to set them against the "
+                "baseline.",
             )
         else:
             _render_results(cfg, config, saved)
@@ -208,24 +258,30 @@ def _run(model_key, scn_items):
     inp = load_inputs(model_key)
     if scn is None:
         sched = tuple(fitted_schedule(inp.betas))
-    else:
+    elif scn["kind"] == "lockdown":
         sched = lockdown_schedule(inp.betas, scn["start"], scn["duration"], scn["reduction"] / 100)
+    else:
+        sched = school_reopening_schedule(inp.betas, scn["delay"])
     return simulate(inp, sched), inp
 
 
 @st.cache_data(max_entries=4, show_spinner=False)
 def _baseline_bands():
-    """Model 3b, fitted baseline only: 95% credible band per day for each
-    series, from N_UNCERTAINTY_DRAWS posterior draws (simulator.simulate_draws).
-    Returns a DataFrame with date + {series}_lo/{series}_hi columns, ready to
-    merge onto the point-estimate trajectory and shade on the Plots view."""
-    from data import load_age_bayes_draws
-    n_total = len(load_age_bayes_draws())
+    """Model 3b, fitted baseline only: 95% posterior-predictive band per day
+    for each series, from N_UNCERTAINTY_DRAWS posterior draws
+    (simulator.simulate_draws's "obs" output -- parameter uncertainty plus
+    the fitted observation noise, corrected for residual autocorrelation
+    via each draw's own sigma^2, same as the Bayesian bands shown for
+    Model 3b elsewhere in the app). Returns a DataFrame with date +
+    {series}_lo/{series}_hi columns, ready to merge onto the point-estimate
+    trajectory and shade on the Plots view."""
+    from data import load_bayes_draws
+    n_total = len(load_bayes_draws("age_bayes"))
     idx = tuple(int(i) for i in np.linspace(0, n_total - 1, N_UNCERTAINTY_DRAWS).round())
     d = simulate_draws(idx, None, None, None)
     out = {"date": DAY0 + pd.to_timedelta(np.arange(N_DAYS), unit="D")}
     for s in ["cases", "ward", "icu", "deaths"]:
-        lo, hi = np.percentile(d[s], [2.5, 97.5], axis=1)
+        lo, hi = np.percentile(d["obs"][s], [2.5, 97.5], axis=1)
         out[f"{s}_lo"], out[f"{s}_hi"] = lo, hi
     return pd.DataFrame(out)
 
@@ -281,9 +337,9 @@ def _render_results(cfg, current, saved):
         legend = [("line", charts.INK, "Scenario" if scn else "Simulated (fitted baseline)")]
         if show_bands:
             legend.append(("band", charts.INK,
-                           f"95% credible band ({N_UNCERTAINTY_DRAWS} posterior draws)"))
+                           f"95% predictive band ({N_UNCERTAINTY_DRAWS} posterior draws)"))
         if scn:
-            legend.append(("window", charts.WINDOW_COLOR, "Window with the extra Rₜ reduction"))
+            legend.append(("window", charts.WINDOW_COLOR, f"Window where it differs ({window[2]})"))
         legend.append(("rule", charts.RULE_COLOR, "Fitted changepoint"))
         st.markdown(charts.legend_html(legend), unsafe_allow_html=True)
         panels = [
@@ -295,8 +351,8 @@ def _render_results(cfg, current, saved):
         ]
         panel_grid(panels)
         if model_key == "age_point" and scn is None and not show_bands:
-            st.caption("Press **Compute credible bands** in the sidebar for a 95% "
-                       "credible band on these plots, from posterior draws.")
+            st.caption("Tick **95% predictive band** in the sidebar for a credible "
+                       "band on these plots, from posterior draws.")
         st.markdown("##### Effective reproduction number Rₜ")
         st.altair_chart(
             charts.scenario_panel(df, "Rt", None, CHANGEPOINTS, start, end, window,

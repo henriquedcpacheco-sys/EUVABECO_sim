@@ -129,11 +129,20 @@ def simulate_draws(draw_idx: tuple, start_day, duration, reduction) -> dict:
     per draw -- orders of magnitude faster than looping draw by draw.
     `start_day`/`duration`/`reduction` describe an optional extra-lockdown
     window on top of the fitted schedule (all three None for the baseline).
-    Returns daily totals per draw: cases, ward, icu, deaths, each (N_DAYS, n).
-    """
-    from data import load_age_bayes_draws, load_age_covariates  # avoid import cycle
 
-    draws = load_age_bayes_draws().iloc[list(draw_idx)].reset_index(drop=True)
+    Returns {"sim": {...}, "obs": {...}}, each with daily totals per draw
+    for cases/ward/icu/deaths, shape (N_DAYS, n). "sim" is the trajectory
+    at each draw's own parameters (parameter uncertainty only); "obs" adds
+    the fitted observation noise on top (same log-normal model as the
+    offline Bayesian export, Tese/D2/d2_app_age_bayes_export.m), using
+    each draw's own sigma^2 -- already re-inflated for residual
+    autocorrelation there, so this reproduces the same 95% predictive band
+    shown for Model 3b's Bayesian fit elsewhere in the app, not just a
+    posterior-mean-parameter band that ignores observation noise.
+    """
+    from data import load_bayes_draws, load_age_covariates  # avoid import cycle
+
+    draws = load_bayes_draws("age_bayes").iloc[list(draw_idx)].reset_index(drop=True)
     cov = load_age_covariates()
     psi_mat = age_psi_matrix(draws, cov)
     betas_mat = draws[[f"beta{k}" for k in range(1, 6)]].to_numpy()
@@ -189,12 +198,34 @@ def simulate_draws(draw_idx: tuple, start_day, duration, reduction) -> dict:
         y = sol.y[:, -1].reshape(10, n)
 
     C, Dcum = out[:, 9, :], out[:, 8, :]
-    return {
+    sim = {
         "cases": np.maximum(np.diff(C, axis=0, prepend=0.0), 0),
         "ward": out[:, 5, :],
         "icu": out[:, 6, :],
         "deaths": np.maximum(np.diff(Dcum, axis=0, prepend=0.0), 0),
     }
+
+    sigma2 = draws["sigma2"].to_numpy()
+    rng = np.random.default_rng(20231024)
+    obs = {}
+    for s, arr in sim.items():
+        mu = np.log(np.maximum(arr, 0) + 1)
+        noise = rng.standard_normal(arr.shape) * np.sqrt(sigma2)[None, :]
+        obs[s] = np.exp(mu + noise) - 1
+
+    return {"sim": sim, "obs": obs}
+
+
+def school_reopening_schedule(betas, delay_days: int) -> tuple:
+    """Counterfactual later school reopening: the fitted switch at
+    FITTED_CP[2] (14/09/2020, the back-to-school changepoint, when beta
+    steps up from the summer level betas[2] to the post-reopening level
+    betas[3]) is pushed `delay_days` later, so beta stays at the summer
+    level for longer. Capped so it cannot reach the next real changepoint
+    (the 06/11/2020 Nov tightening, FITTED_CP[3])."""
+    cps = [0] + FITTED_CP + [N_DAYS - 1]
+    cps[3] = min(cps[3] + delay_days, cps[4] - 1)
+    return tuple((cps[k], cps[k + 1], betas[k]) for k in range(5))
 
 
 def lockdown_schedule(betas, start_day: int, duration: int, reduction: float) -> tuple:
