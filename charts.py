@@ -7,7 +7,8 @@ PNG (vl-convert, no browser needed) for the downloadable ZIPs.
 """
 from __future__ import annotations
 
-import warnings
+import io
+import itertools
 from pathlib import Path
 
 import altair as alt
@@ -104,7 +105,7 @@ def window_band(window, start, end):
 def _hover(d: pd.DataFrame, tooltip: list):
     """Invisible nearest-day selector + a visible rule on the hovered day."""
     sel = alt.selection_point(nearest=True, on="pointerover", fields=["date"],
-                              empty=False, clear="pointerout")
+                              empty=False, clear="pointerout", name=_unique("hover"))
     return alt.Chart(d).mark_rule(color=RULE_COLOR, strokeWidth=1).encode(
         x="date:T",
         opacity=alt.condition(sel, alt.value(0.55), alt.value(0)),
@@ -112,8 +113,57 @@ def _hover(d: pd.DataFrame, tooltip: list):
     ).add_params(sel)
 
 
-def _layer(parts, title=None, height=PANEL_HEIGHT, subtitle=None):
-    parts = [p for p in parts if p is not None]
+# Zoom and pan on every chart: Ctrl + scroll (or a trackpad pinch) zooms, a
+# drag pans, a double-click resets. Plain scrolling is left to the page.
+ZOOM_HINT = "Ctrl + scroll (or pinch) to zoom, drag to move, double-click to reset."
+
+
+_names = itertools.count()
+
+
+def _unique(prefix: str) -> str:
+    """A parameter name no other chart uses: Altair otherwise names identical
+    selections alike, and they clash once panels are concatenated."""
+    return f"{prefix}_{next(_names)}"
+
+
+def _zoom(encodings=("x", "y")):
+    return alt.selection_interval(bind="scales", encodings=list(encodings),
+                                  zoom="wheel![event.ctrlKey]", name=_unique("zoom"))
+
+
+def _with_zoom(parts, encodings=("x", "y")):
+    """Attach the zoom to the first data layer that has every zoomed channel.
+    It goes on one layer, not on the layered chart, so that Altair leaves the
+    hover selections inside their own layers."""
+    parts = list(parts)
+    for i, p in enumerate(parts):
+        enc = getattr(p, "encoding", alt.Undefined)
+        if isinstance(p, alt.Chart) and enc is not alt.Undefined and all(
+                getattr(enc, c, alt.Undefined) is not alt.Undefined for c in encodings):
+            parts[i] = p.add_params(_zoom(encodings))
+            break
+    return parts
+
+
+def _clip(ch):
+    """Clip a chart's marks to the plot area (zoomed or panned data would
+    otherwise be drawn over the axes)."""
+    if isinstance(ch, alt.LayerChart):
+        ch = ch.copy(deep=False)
+        ch.layer = [_clip(c) for c in ch.layer]
+        return ch
+    if not isinstance(ch, alt.Chart):
+        return ch
+    m = ch.mark
+    spec = {"type": m} if isinstance(m, str) else m.to_dict()
+    ch = ch.copy(deep=False)
+    ch.mark = alt.MarkDef(**{**spec, "clip": True})
+    return ch
+
+
+def _layer(parts, title=None, height=PANEL_HEIGHT, subtitle=None, zoom=("x", "y")):
+    parts = _with_zoom([_clip(p) for p in parts if p is not None], zoom)
     ch = alt.layer(*parts).properties(height=height)
     if title:
         ch = ch.properties(title=alt.TitleParams(
@@ -242,6 +292,8 @@ def overlay_chart(left: tuple, right: tuple, cps, start, end, window=None):
             x=alt.X("date:T", axis=_X_AXIS), y=enc_y,
             tooltip=[alt.Tooltip("date:T", title="Date", format=DATE_FMT),
                      alt.Tooltip(f"{name}:Q", format=".3f" if is_rt else ",.1f")])
+        if not layers:  # time zoom only: the two y-axes are independent
+            line = line.add_params(_zoom(("x",)))
         if is_rt:
             one = alt.Chart(_ONE).mark_rule(color=color, strokeDash=[2, 3], opacity=0.7).encode(
                 y=alt.datum(1.0))
@@ -249,7 +301,8 @@ def overlay_chart(left: tuple, right: tuple, cps, start, end, window=None):
         layers.append(line)
     extras = [p for p in [window_band(window, start, end), changepoint_rules(cps, start, end)]
               if p is not None]
-    return alt.layer(*extras, *layers).resolve_scale(y="independent").properties(height=320)
+    return (alt.layer(*[_clip(p) for p in (*extras, *layers)])
+            .resolve_scale(y="independent").properties(height=320))
 
 
 def histogram_panel(draws: pd.Series, title: str, post_mean: float, ls_est: float,
@@ -282,21 +335,21 @@ def histogram_panel(draws: pd.Series, title: str, post_mean: float, ls_est: floa
     ls = alt.Chart(pd.DataFrame({"x": [ls_est]})).mark_rule(
         color=INK, strokeDash=[4, 3], strokeWidth=1.5).encode(
         x="x:Q", tooltip=alt.Tooltip("x:Q", title="Least-squares estimate", format=".4g"))
-    return _layer([ci, bars, pm, ls], title, height=150)
+    return _layer([ci, bars, pm, ls], title, height=150, zoom=("x",))
 
 
 def compare_chart(long: pd.DataFrame, value_col: str, y_title: str, is_rt=False):
     """One line per saved simulation (long: date, simulation, value_col)."""
     names = list(dict.fromkeys(long["simulation"]))
     sel = alt.selection_point(nearest=True, on="pointerover", fields=["date"],
-                              empty=False, clear="pointerout")
+                              empty=False, clear="pointerout", name=_unique("hover"))
     base = alt.Chart(long).encode(x=alt.X("date:T", axis=_X_AXIS))
     lines = base.mark_line(strokeWidth=2.2).encode(
         y=alt.Y(f"{value_col}:Q", axis=_y_axis(y_title, ".1f" if is_rt else None)),
         color=alt.Color("simulation:N", scale=alt.Scale(
             domain=names, range=COMPARE_PALETTE[: max(len(names), 1)]),
             legend=alt.Legend(orient="bottom", direction="vertical", title=None, labelLimit=600)),
-    )
+    ).add_params(_zoom())
     pts = base.mark_circle(size=40).encode(
         y=f"{value_col}:Q", color="simulation:N",
         opacity=alt.condition(sel, alt.value(1), alt.value(0)),
@@ -308,7 +361,7 @@ def compare_chart(long: pd.DataFrame, value_col: str, y_title: str, is_rt=False)
     if is_rt:
         parts.insert(0, alt.Chart(_ONE).mark_rule(
             color=RULE_COLOR, strokeDash=[2, 3]).encode(y=alt.datum(1.0)))
-    return alt.layer(*parts).properties(height=360)
+    return alt.layer(*[_clip(p) for p in parts]).properties(height=360)
 
 
 # ----------------------------------------------------------------------------
@@ -346,18 +399,50 @@ def _export_config(ch, title=None):
     ).configure_view(stroke=None).configure_title(color="#1F2328", subtitleColor="#6B7078")
 
 
-def grid(panels: list, ncols: int = 2, width: int = 380):
+class Grid:
+    """Panels laid out in a grid for export (see to_png). Each panel is
+    rendered on its own and the images are placed side by side: concatenating
+    the interactive charts into one Vega-Lite spec makes their selections
+    clash."""
+
+    def __init__(self, panels: list, ncols: int, width: int):
+        self.panels = [p.properties(width=width) for p in panels]
+        self.ncols = ncols
+
+
+def grid(panels: list, ncols: int = 2, width: int = 380) -> Grid:
     """Arrange panels in a grid for export."""
-    panels = [p.properties(width=width) for p in panels]
-    rows = [alt.hconcat(*panels[i:i + ncols], spacing=24) for i in range(0, len(panels), ncols)]
-    return alt.vconcat(*rows, spacing=18) if len(rows) > 1 else rows[0]
+    return Grid(panels, ncols, width)
 
 
 def to_png(chart, title=None, width=None, scale=2) -> bytes:
+    if isinstance(chart, Grid):
+        return _grid_png(chart, title, scale)
     if width is not None:
         chart = chart.properties(width=width)
-    with warnings.catch_warnings():
-        # Panels concatenated for export share identical hover selections.
-        warnings.simplefilter("ignore", UserWarning)
-        spec = _export_config(chart, title).to_json()
+    spec = _export_config(chart, title).to_json()
     return vlc.vegalite_to_png(spec, scale=scale)
+
+
+def _grid_png(g: Grid, title, scale) -> bytes:
+    from PIL import Image, ImageDraw, ImageFont
+
+    imgs = [Image.open(io.BytesIO(to_png(p, scale=scale))).convert("RGB") for p in g.panels]
+    cw, ch = max(i.width for i in imgs), max(i.height for i in imgs)
+    rows = -(-len(imgs) // g.ncols)
+    gap, pad = 12 * scale, 8 * scale
+    top = 40 * scale if title else pad
+    out = Image.new("RGB", (pad * 2 + g.ncols * cw + (g.ncols - 1) * gap,
+                            top + rows * ch + (rows - 1) * gap + pad), "white")
+    for k, im in enumerate(imgs):
+        r, c = divmod(k, g.ncols)
+        out.paste(im, (pad + c * (cw + gap), top + r * (ch + gap)))
+    if title:
+        try:
+            font = ImageFont.truetype(str(_FONT_DIR / "Inter-SemiBold.otf"), 16 * scale)
+        except OSError:
+            font = ImageFont.load_default()
+        ImageDraw.Draw(out).text((pad + 6 * scale, 12 * scale), title, fill="#1F2328", font=font)
+    buf = io.BytesIO()
+    out.save(buf, format="PNG")
+    return buf.getvalue()

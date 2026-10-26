@@ -5,6 +5,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+from charts import ZOOM_HINT
 from data import NPI_EVENTS
 
 DATA_PATH = Path(__file__).parent / "data"
@@ -117,9 +118,26 @@ def empty_state(icon: str, title: str, text: str):
         st.markdown(text)
 
 
-def panel_grid(panels: list, ncols: int = 2):
-    """Draw chart panels in a responsive grid (columns stack on narrow screens)."""
+@st.dialog("Enlarged plot", width="large")
+def _enlarge(chart):
+    st.altair_chart(chart.properties(height=560), width="stretch")
+    st.caption(ZOOM_HINT)
+
+
+def show_chart(chart, key: str, container=None):
+    """An Altair chart with an Enlarge button that opens it in a large dialog."""
+    c = container if container is not None else st
+    c.altair_chart(chart, width="stretch")
+    if c.button("Enlarge", key=f"enlarge_{key}", icon=":material/open_in_full:",
+                type="tertiary"):
+        _enlarge(chart)
+
+
+def panel_grid(panels: list, ncols: int = 2, key: str = "panel"):
+    """Draw chart panels in a responsive grid (columns stack on narrow screens),
+    each with its own Enlarge button."""
     for i in range(0, len(panels), ncols):
         cols = st.columns(ncols, gap="large")
-        for col, p in zip(cols, panels[i:i + ncols]):
-            col.altair_chart(p, width="stretch")
+        for j, (col, p) in enumerate(zip(cols, panels[i:i + ncols])):
+            show_chart(p, f"{key}_{i + j}", col)
+    st.caption(ZOOM_HINT)

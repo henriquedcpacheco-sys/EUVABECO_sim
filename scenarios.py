@@ -39,7 +39,7 @@ from simulator import (
     DAY0, FITTED_CP, N_DAYS, fitted_schedule, load_inputs, lockdown_schedule, simulate,
     simulate_draws, school_reopening_schedule,
 )
-from ui import CHANGEPOINTS, empty_state, panel_grid
+from ui import CHANGEPOINTS, empty_state, panel_grid, show_chart
 
 SCN_SERIES = {
     "cases": "Daily cases",
@@ -347,12 +347,12 @@ def _render_results(cfg, current, saved):
                                   hi_col=f"{s}_hi" if show_bands else None)
             for s in ["cases", "ward", "icu", "deaths"]
         ]
-        panel_grid(panels)
+        panel_grid(panels, key="scn")
         st.markdown("##### Effective reproduction number Rₜ")
-        st.altair_chart(
+        show_chart(
             charts.scenario_panel(df, "Rt", None, CHANGEPOINTS, start, end, window,
                                   value_col="Rt", fmt=".3f", unit="Rₜ").properties(height=250),
-            width="stretch",
+            "scn_rt",
         )
 
     elif view == "Epidemic metrics":
@@ -403,8 +403,8 @@ def _render_overlay(df, window, start, end):
         return (df[["date", s]].rename(columns={s: "value"}), name,
                 charts.SERIES_COLORS[s], s == "Rt")
 
-    st.altair_chart(charts.overlay_chart(part(left), part(right), CHANGEPOINTS, start, end,
-                                         window), width="stretch")
+    show_chart(charts.overlay_chart(part(left), part(right), CHANGEPOINTS, start, end, window),
+               "scn_overlay")
 
 
 def _render_compare(saved):
@@ -435,7 +435,7 @@ def _render_compare(saved):
              for n in chosen], ignore_index=True,
         )
         chart = charts.compare_chart(long, s, series_label, is_rt=(s == "Rt"))
-        st.altair_chart(chart, width="stretch")
+        show_chart(chart, "compare")
 
         rows = []
         ref = _metrics(saved[chosen[0]]["data"])

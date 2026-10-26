@@ -32,6 +32,7 @@ from ui import (
     empty_state,
     inject_css,
     panel_grid,
+    show_chart,
     render_header,
     sidebar_footer,
 )
@@ -206,7 +207,7 @@ def render_data_tab():
         charts.observed_panel(series_frame(obs_all, s), s, SERIES_LABELS[s],
                               CHANGEPOINTS, start, end)
         for s in SERIES
-    ])
+    ], key="observed")
 
     st.markdown("##### Interventions and the changepoints used")
     npi = pd.DataFrame(
@@ -532,7 +533,7 @@ def render_results_tab():
                 ("line", charts.INK, "Fitted model"),
                 ("rule", charts.RULE_COLOR, "NPI date"),
             ]), unsafe_allow_html=True)
-        panel_grid(fit_panels)
+        panel_grid(fit_panels, key="fit")
         st.caption("Hover a panel to read the values of each day; hover a dashed line "
                    "for its intervention.")
         if result.has_bands:
@@ -593,7 +594,7 @@ def render_results_tab():
         if result.has_bands:
             st.caption("Residuals between the data and the solid line (model at the "
                        "posterior-mean parameters).")
-        st.altair_chart(resid_chart, width="stretch")
+        show_chart(resid_chart, "residuals")
 
     elif view == "Parameters":
         st.dataframe(params, hide_index=True, width="stretch",
@@ -612,13 +613,13 @@ def render_results_tab():
                 ("dash", charts.INK, "Least-squares estimate"),
                 ("window", charts.WINDOW_COLOR, "95% CI"),
             ]), unsafe_allow_html=True)
-            panel_grid(hist_panels, ncols=4)
+            panel_grid(hist_panels, ncols=4, key="hist")
 
     elif view == "Rₜ":
         st.markdown("##### Effective reproduction number")
         st.caption("Rₜ = β(t)(1/γ_C + 1/γ_I) · S(t)/N.  Rₜ > 1: the epidemic grows. "
                    "Rₜ < 1: the epidemic shrinks.")
-        st.altair_chart(rt_chart, width="stretch")
+        show_chart(rt_chart, "rt")
 
     elif view == "Epidemic metrics":
         st.markdown(
@@ -643,7 +644,7 @@ def render_results_tab():
         st.markdown("Compare two simulated series on the same time axis, each with its "
                     "own y-axis, so that their different scales do not matter.")
         left, right = overlay_selection("ov")
-        st.altair_chart(overlay_for(traj, rt, sim_col, left, right), width="stretch")
+        show_chart(overlay_for(traj, rt, sim_col, left, right), "overlay")
         if result.has_bands:
             st.caption("Simulated series: the model at the posterior-mean parameters "
                        "(solid line in the Fit view).")
