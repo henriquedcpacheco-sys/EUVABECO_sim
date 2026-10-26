@@ -134,24 +134,9 @@ POINT_KEY = {"sim_m1": "sim_m1", "sim_m2": "sim_m2", "age_nocorr": "age_nocorr",
 BAYES_KEY = {"sim_m1": "sim_m1_bayes", "sim_m2": "sim_m2_bayes",
              "age_nocorr": "age_nocorr_bayes", "age_3b": "age_bayes"}
 
-model_key = None
-if model_choice is not None:
-    bayes_choice = sb.radio(
-        "Fitting method",
-        ["Point estimate (least squares)", "95% credible bands (Bayesian MCMC)"],
-        index=None,
-        key="bayes",
-        help=(
-            "Least squares: lsqnonlin finds the single parameter set that "
-            "minimises J directly. Bayesian MCMC (DRAM): samples the full "
-            "posterior distribution of the parameters, propagated through "
-            "the ODE to give uncertainty bands instead of one best-fit line."
-        ),
-    )
-    if bayes_choice == "Point estimate (least squares)":
-        model_key = POINT_KEY[model_choice]
-    elif bayes_choice == "95% credible bands (Bayesian MCMC)":
-        model_key = BAYES_KEY[model_choice]
+# The fit always runs with the least-squares point estimates; the Bayesian
+# bands are switched on afterwards, from the results (toggle).
+model_key = POINT_KEY[model_choice] if model_choice is not None else None
 
 run_clicked = sb.button(
     "Run model fitting",
@@ -159,7 +144,7 @@ run_clicked = sb.button(
     icon=":material/play_arrow:",
     width="stretch",
     disabled=model_key is None,
-    help=None if model_key else "Pick a model (and, for Model 3b, a fitting method) first.",
+    help=None if model_key else "Pick a model first.",
 )
 sidebar_footer(sb)
 
@@ -170,6 +155,7 @@ if model_key != st.session_state.last_model_key:
     st.session_state.last_model_key = model_key
 if run_clicked:
     st.session_state.simulated = True
+    st.session_state.show_bands = False  # every run starts from the point estimates
     st.session_state.main_tab = TAB_RESULTS
 
 
@@ -421,8 +407,7 @@ def render_results_tab():
         empty_state(
             ":material/arrow_back:",
             "Pick a model in the sidebar",
-            "Choose one of the four models (and, for Model 3b, the fitting method), "
-            "then press **Run model fitting**. The table below compares the fit "
+            "Choose one of the four models, then press **Run model fitting**. The table below compares the fit "
             "error J of every model.",
         )
         render_models_at_a_glance()
@@ -435,21 +420,28 @@ def render_results_tab():
         )
         return
 
-    result = load_bayes(model_key) if model_key in BAYES_MODELS else load_deterministic(model_key)
+    show_bands = st.toggle(
+        "Show 95% Bayesian bands (MCMC)", key="show_bands",
+        help="Switch from the least-squares point estimates to the Bayesian posterior: "
+             "95% credible and posterior-predictive bands, the model at the "
+             "posterior-mean parameters, and the posterior of every parameter.",
+    )
+    key = BAYES_KEY[model_choice] if show_bands else model_key
+    result = load_bayes(key) if key in BAYES_MODELS else load_deterministic(key)
     sim_col = "point_est" if result.has_bands else "sim"
     traj = in_window(result.trajectories)
-    rt = in_window(load_rt(model_key))
+    rt = in_window(load_rt(key))
 
     # Tables needed by several views and by the download.
     if result.has_bands:
-        fit, _ = load_bayes_fit(model_key)
+        fit, _ = load_bayes_fit(key)
         j_table = j_table_bayes(fit)
-        comp = bayes_model_comparison(fit, model_key)
+        comp = bayes_model_comparison(fit, key)
     else:
         fit, comp = None, None
         j_table = j_table_deterministic(result.summary) if result.summary is not None else None
     weekly = weekly_residuals(result.trajectories, sim_col)
-    params = params_table(result, model_key)
+    params = params_table(result, key)
     summary, peaks, metrics_table = epidemic_metrics(traj, sim_col, rt)
 
     # Chart objects (cheap to build; only the open view is drawn).
@@ -463,13 +455,13 @@ def render_results_tab():
                                label="Rₜ = β(t)(1/γ_C + 1/γ_I) · S(t)/N")
     hist_panels = []
     if result.has_bands:
-        draws = load_bayes_draws(model_key)
+        draws = load_bayes_draws(key)
         pinfo = result.params.set_index("name")
         hist_panels = [
             charts.histogram_panel(draws[n], param_symbol(n), pinfo.loc[n, "post_mean"],
                                    pinfo.loc[n, "point_est"], pinfo.loc[n, "ci_low"],
                                    pinfo.loc[n, "ci_high"])
-            for n in draws.columns
+            for n in draws.columns if n in pinfo.index  # sigma2 is noise, not a parameter
         ]
 
     # ---- title row with the download
@@ -513,7 +505,7 @@ def render_results_tab():
         st.download_button(
             "Download results (ZIP)",
             data=build_zip,
-            file_name=f"{model_key}_results.zip",
+            file_name=f"{key}_results.zip",
             mime="application/zip",
             icon=":material/download:",
             width="stretch",

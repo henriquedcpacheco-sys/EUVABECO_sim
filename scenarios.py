@@ -22,7 +22,7 @@ Either way the model is re-integrated at runtime (simulator.py) with each
 model's fitted parameters. Only simulated values are shown here, never
 observed data.
 
-For Model 3b only, an opt-in checkbox re-integrates the baseline (no
+For Model 3b only, an opt-in toggle in the results re-integrates the baseline (no
 scenario) across 500 posterior draws (simulator.simulate_draws) to shade
 a 95% predictive band on the plots -- the same method, including the
 residual-autocorrelation (effective sample size) correction to the
@@ -211,26 +211,13 @@ def render_scenarios(sb):
         format="DD/MM/YYYY", key="scn_period",
     )
 
-    # Predictive band: only for the fitted simulation itself (no scenario
-    # configured), and only drawn on the Plots view -- not for either
-    # counterfactual scenario, which stay point-estimate only.
-    bands_available = model_key == "age_point" and scn is None
-    sb.checkbox(
-        f"95% predictive band ({N_UNCERTAINTY_DRAWS} posterior draws)",
-        key="scn_bands_on", disabled=not bands_available,
-        help="Model 3b only, baseline only. Re-integrates across "
-             f"{N_UNCERTAINTY_DRAWS} posterior draws and adds the fitted observation "
-             "noise (corrected for residual autocorrelation, i.e. on the effective "
-             "sample size, not the raw day count) -- a few seconds the first time, "
-             "then cached. Same method as the Bayesian bands shown for Model 3b "
-             "elsewhere in the app.",
-    )
     run = sb.button("Run scenario simulation", type="primary", icon=":material/play_arrow:",
                     width="stretch")
 
     config = (model_key, None if scn is None else tuple(sorted(scn.items())), period)
     if run:
         st.session_state.scn_config = config
+        st.session_state.scn_bands_on = False  # every run starts from the point estimates
 
     tab_results, tab_compare = st.tabs(
         [":material/query_stats: Results", ":material/compare_arrows: Compare"]
@@ -310,8 +297,19 @@ def _render_results(cfg, current, saved):
 
     m = _metrics(df)
 
-    show_bands = (model_key == "age_point" and scn is None
-                  and st.session_state.get("scn_bands_on"))
+    # Predictive band: switched on from the results, only for the fitted
+    # Model 3b baseline (no counterfactual scenario).
+    bands_available = model_key == "age_point" and scn is None
+    st.toggle(
+        f"Show 95% Bayesian band ({N_UNCERTAINTY_DRAWS} posterior draws)",
+        key="scn_bands_on", disabled=not bands_available,
+        help="Model 3b baseline only. Re-integrates the model across "
+             f"{N_UNCERTAINTY_DRAWS} posterior draws and adds the fitted observation "
+             "noise (corrected for residual autocorrelation) -- a few seconds the "
+             "first time, then cached. Same method as the Bayesian bands of Model 3b "
+             "in the fitting modes.",
+    )
+    show_bands = bands_available and st.session_state.get("scn_bands_on")
     if show_bands:
         with st.spinner(f"Integrating {N_UNCERTAINTY_DRAWS} posterior draws…"):
             bands = _baseline_bands()
@@ -350,9 +348,6 @@ def _render_results(cfg, current, saved):
             for s in ["cases", "ward", "icu", "deaths"]
         ]
         panel_grid(panels)
-        if model_key == "age_point" and scn is None and not show_bands:
-            st.caption("Tick **95% predictive band** in the sidebar for a credible "
-                       "band on these plots, from posterior draws.")
         st.markdown("##### Effective reproduction number Rₜ")
         st.altair_chart(
             charts.scenario_panel(df, "Rt", None, CHANGEPOINTS, start, end, window,
